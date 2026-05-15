@@ -169,7 +169,10 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
     <span>🗓️ <strong>4 semanas</strong></span>
     <span>👷 <strong id="meta-partidas">— partidas con MO</strong></span>
     <span>💾 <span id="last-save">Sin guardar aún</span></span>
-    <span><button class="btn-token" id="btn-config-token">⚙️ Token</button></span>
+    <span>
+      <button class="btn-token" id="btn-sincronizar">🔄 Sincronizar</button>
+      <button class="btn-token" id="btn-config-token">⚙️ Token</button>
+    </span>
   </div>
 </div>
 
@@ -361,16 +364,28 @@ let charts = {};
 async function loadRegistros(){
   try {
     document.getElementById('last-save').textContent = 'Cargando datos...';
-    const url = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/' + GH_BRANCH + '/' + GH_FILE + '?t=' + Date.now();
-    const res = await fetch(url, { cache: 'no-store' });
+    // Usar la API de GitHub (no raw URL) para evitar caché del CDN
+    const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE + '?ref=' + GH_BRANCH;
+    const headers = { 'Accept': 'application/vnd.github+json' };
+    if(GH_TOKEN) headers['Authorization'] = 'Bearer ' + GH_TOKEN;
+    const res = await fetch(apiUrl, { headers, cache: 'no-store' });
     if(res.status === 404) return {};
     if(!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
+    const data = await res.json();
+    const jsonStr = decodeURIComponent(escape(atob(data.content.replace(/\n/g,''))));
+    return JSON.parse(jsonStr);
   } catch(e) {
     console.error('loadRegistros:', e);
     document.getElementById('last-save').textContent = '⚠️ Error al cargar';
     return {};
   }
+}
+
+async function sincronizar(){
+  registros = await loadRegistros();
+  renderAll();
+  updateLastSave();
+  toast('✓ Datos sincronizados');
 }
 
 let _saving = false;
@@ -999,6 +1014,7 @@ function renderAll(){
 function showTokenModal(){ document.getElementById('modal-token').classList.remove('hidden'); document.getElementById('input-token').value = GH_TOKEN; }
 function hideTokenModal(){ document.getElementById('modal-token').classList.add('hidden'); }
 document.getElementById('btn-config-token').addEventListener('click', showTokenModal);
+document.getElementById('btn-sincronizar').addEventListener('click', sincronizar);
 document.getElementById('btn-token-cancel').addEventListener('click', hideTokenModal);
 document.getElementById('btn-token-save').addEventListener('click', ()=>{
   const t = document.getElementById('input-token').value.trim();
