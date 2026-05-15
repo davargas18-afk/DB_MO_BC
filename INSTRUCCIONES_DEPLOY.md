@@ -20,34 +20,9 @@ La URL pública es servida por GitHub Pages (gratis).
 
 ---
 
-## PASO 2 – Pegar el token en el dashboard
+## PASO 2 – Activar GitHub Pages y compartir la URL
 
-1. Abre el archivo `Dashboard_MO_Interactivo.html` en un editor (VS Code, Notepad, etc.)
-2. Busca esta línea al inicio del bloque `<script>`:
-
-```javascript
-const GH_TOKEN  = 'TU_GITHUB_TOKEN_AQUI';
-```
-
-3. Reemplaza `TU_GITHUB_TOKEN_AQUI` con tu token real:
-
-```javascript
-const GH_TOKEN  = 'github_pat_11AAAA...';
-```
-
-4. Guarda el archivo.
-
----
-
-## PASO 3 – Subir los cambios a GitHub
-
-En la terminal (o git bash), dentro de la carpeta del proyecto:
-
-```bash
-git add .
-git commit -m "Agregar token y activar guardado en GitHub"
-git push
-```
+No necesitas pegar el token en el código. Cada usuario lo ingresa directamente en el navegador (se guarda ahí, nunca en el código).
 
 ---
 
