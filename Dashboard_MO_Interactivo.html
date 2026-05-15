@@ -291,7 +291,8 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 
   <div class="footer-actions">
     <button class="btn btn-danger" id="btn-clear-week">🗑️ Limpiar semana</button>
-    <button class="btn btn-secondary" id="btn-export">💾 Exportar registros</button>
+    <button class="btn btn-secondary" id="btn-export">📄 Exportar CSV</button>
+    <button class="btn btn-primary" id="btn-guardar">💾 Guardar ahora</button>
   </div>
 </div>
 
@@ -382,38 +383,67 @@ async function loadRegistros(){
 }
 
 async function sincronizar(){
+  if(Object.keys(localChanges).length > 0){
+    if(!confirm('Tienes cambios sin guardar. ¿Sincronizar de todos modos? Se perderán los cambios no guardados.')) return;
+  }
   registros = await loadRegistros();
+  localChanges = {};
   renderAll();
-  updateLastSave();
+  if(Object.keys(registros).length > 0) updateLastSave(); else document.getElementById('last-save').textContent = 'Sin registros aún';
   toast('✓ Datos sincronizados');
 }
 
+// Cambios locales de esta sesión (para merge seguro con otros usuarios)
+let localChanges = {};
 let _saving = false;
-async function saveRegistros(){
+let _autoSaveTimer = null;
+
+function deepMergeRegistros(base, overlay) {
+  const result = JSON.parse(JSON.stringify(base));
+  for(const sem in overlay){
+    if(!result[sem]) result[sem] = {};
+    for(const item in overlay[sem]){
+      if(!result[sem][item]) result[sem][item] = {};
+      for(const day in overlay[sem][item]){
+        result[sem][item][day] = Object.assign({}, result[sem][item][day]||{p:0,o:0,op:0}, overlay[sem][item][day]);
+      }
+    }
+  }
+  return result;
+}
+
+// forceData: si se pasa, guarda ese objeto directamente (ej: tras limpiar semana)
+async function saveRegistros(forceData){
   if(_saving) return;
   _saving = true;
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = null;
   try {
     document.getElementById('last-save').textContent = 'Guardando...';
     const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
-    const headers = {
-      'Authorization': 'Bearer ' + GH_TOKEN,
-      'Accept': 'application/vnd.github+json',
-      'Content-Type': 'application/json'
-    };
-    // Obtener SHA actual del archivo (necesario para actualizar)
-    let sha;
+    const headers = { 'Authorization':'Bearer '+GH_TOKEN, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' };
+    // Obtener SHA y datos remotos actuales para merge
+    let sha, remoteData = {};
     const shaRes = await fetch(apiUrl + '?ref=' + GH_BRANCH, { headers });
-    if(shaRes.ok){ const d = await shaRes.json(); sha = d.sha; }
-    // Codificar contenido en base64
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(registros, null, 2))));
-    const body = { message: 'Actualizar registros MO', content, branch: GH_BRANCH };
+    if(shaRes.ok){
+      const d = await shaRes.json();
+      sha = d.sha;
+      try { remoteData = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))))); } catch(e){}
+    }
+    // Merge: remoto + cambios locales (o forceData si se indica)
+    const finalData = forceData !== undefined ? forceData : deepMergeRegistros(remoteData, localChanges);
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(finalData, null, 2))));
+    const body = { message:'Actualizar registros MO', content, branch:GH_BRANCH };
     if(sha) body.sha = sha;
-    const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
-    if(!putRes.ok){ const err = await putRes.json(); throw new Error(err.message || 'Error al guardar'); }
+    const putRes = await fetch(apiUrl, { method:'PUT', headers, body:JSON.stringify(body) });
+    if(!putRes.ok){ const err = await putRes.json(); throw new Error(err.message||'Error al guardar'); }
+    registros = finalData;
+    localChanges = {};
     updateLastSave();
   } catch(e) {
     console.error('saveRegistros:', e);
     toast('❌ Error al guardar: ' + e.message);
+    document.getElementById('last-save').textContent = '⚠️ Error – reintenta';
   } finally {
     _saving = false;
   }
@@ -764,17 +794,25 @@ function renderRegistro(){
 
   // Bind inputs
   cont.querySelectorAll('input[type=number]').forEach(inp=>{
-    inp.addEventListener('change', async e=>{
+    inp.addEventListener('change', e=>{
       const item = e.target.dataset.item;
       const cat = e.target.dataset.cat;
       const day = +e.target.dataset.day;
       const val = parseFloat(e.target.value) || 0;
+      // Actualizar estado local
       if(!registros[currentSemana]) registros[currentSemana] = {};
       if(!registros[currentSemana][item]) registros[currentSemana][item] = {};
       if(!registros[currentSemana][item][day]) registros[currentSemana][item][day] = {p:0,o:0,op:0};
       registros[currentSemana][item][day][cat] = val;
-      await saveRegistros();
-      toast('✓ Guardado');
+      // Registrar cambio local para merge seguro
+      if(!localChanges[currentSemana]) localChanges[currentSemana] = {};
+      if(!localChanges[currentSemana][item]) localChanges[currentSemana][item] = {};
+      if(!localChanges[currentSemana][item][day]) localChanges[currentSemana][item][day] = {p:0,o:0,op:0};
+      localChanges[currentSemana][item][day][cat] = val;
+      // Indicar cambios pendientes y auto-guardar tras 2 s de inactividad
+      document.getElementById('last-save').textContent = '● Sin guardar';
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = setTimeout(()=>saveRegistros(), 2000);
       renderRegistro();
     });
   });
@@ -992,10 +1030,16 @@ function bindEvents(){
   document.getElementById('btn-clear-week').addEventListener('click', async ()=>{
     if(confirm(`¿Limpiar TODOS los registros de la Semana ${currentSemana}? Esta acción no se puede deshacer.`)){
       delete registros[currentSemana];
-      await saveRegistros();
+      delete localChanges[currentSemana];
+      await saveRegistros(registros); // guarda estado completo (con la semana eliminada)
       renderAll();
       toast('Semana '+currentSemana+' limpiada');
     }
+  });
+  document.getElementById('btn-guardar').addEventListener('click', ()=>{
+    clearTimeout(_autoSaveTimer);
+    saveRegistros();
+    toast('Guardando...');
   });
   document.getElementById('btn-export').addEventListener('click', exportCSV);
 }
