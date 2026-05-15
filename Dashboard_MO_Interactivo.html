@@ -298,14 +298,12 @@ const DATA = {"tarifas": {"p": 29.19, "o": 10.08, "op": 14.33}, "partidas": [{"i
 const PARTIDAS = DATA.partidas;
 const TARIFAS = DATA.tarifas;
 const SPECS = [...new Set(PARTIDAS.filter(p=>!p.is_group).map(p=>p.specialty))];
-// ⚙️ CONFIGURAR: Reemplaza estos valores con tus credenciales de Supabase
-const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
-const SUPABASE_KEY = 'TU_ANON_KEY_AQUI';
-const SUPABASE_HEADERS = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': 'Bearer ' + SUPABASE_KEY,
-  'Content-Type': 'application/json'
-};
+// ⚙️ CONFIGURAR: Reemplaza con tu token de GitHub (ver INSTRUCCIONES_DEPLOY.md)
+const GH_OWNER  = 'davargas18-afk';
+const GH_REPO   = 'DB_MO_BC';
+const GH_BRANCH = 'main';
+const GH_FILE   = 'data/registros.json';
+const GH_TOKEN  = 'TU_GITHUB_TOKEN_AQUI'; // Fine-grained PAT con permisos Contents: Read & Write
 
 const SPEC_COLORS = {
   'Obras Provisionales y Seguridad': '#F59E0B',
@@ -333,35 +331,46 @@ let charts = {};
 async function loadRegistros(){
   try {
     document.getElementById('last-save').textContent = 'Cargando datos...';
-    const res = await fetch(
-      SUPABASE_URL + '/rest/v1/registros_data?id=eq.1&select=data',
-      { headers: SUPABASE_HEADERS }
-    );
+    const url = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/' + GH_BRANCH + '/' + GH_FILE + '?t=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
+    if(res.status === 404) return {};
     if(!res.ok) throw new Error('HTTP ' + res.status);
-    const rows = await res.json();
-    return rows[0]?.data || {};
+    return await res.json();
   } catch(e) {
     console.error('loadRegistros:', e);
-    document.getElementById('last-save').textContent = '⚠️ Sin conexión – modo local';
+    document.getElementById('last-save').textContent = '⚠️ Error al cargar';
     return {};
   }
 }
+
+let _saving = false;
 async function saveRegistros(){
+  if(_saving) return;
+  _saving = true;
   try {
     document.getElementById('last-save').textContent = 'Guardando...';
-    const res = await fetch(
-      SUPABASE_URL + '/rest/v1/registros_data?id=eq.1',
-      {
-        method: 'PATCH',
-        headers: Object.assign({}, SUPABASE_HEADERS, {'Prefer': 'return=minimal'}),
-        body: JSON.stringify({ data: registros, updated_at: new Date().toISOString() })
-      }
-    );
-    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
+    const headers = {
+      'Authorization': 'Bearer ' + GH_TOKEN,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    };
+    // Obtener SHA actual del archivo (necesario para actualizar)
+    let sha;
+    const shaRes = await fetch(apiUrl + '?ref=' + GH_BRANCH, { headers });
+    if(shaRes.ok){ const d = await shaRes.json(); sha = d.sha; }
+    // Codificar contenido en base64
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(registros, null, 2))));
+    const body = { message: 'Actualizar registros MO', content, branch: GH_BRANCH };
+    if(sha) body.sha = sha;
+    const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+    if(!putRes.ok){ const err = await putRes.json(); throw new Error(err.message || 'Error al guardar'); }
     updateLastSave();
   } catch(e) {
     console.error('saveRegistros:', e);
     toast('❌ Error al guardar: ' + e.message);
+  } finally {
+    _saving = false;
   }
 }
 function updateLastSave(){

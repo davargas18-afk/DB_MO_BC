@@ -1,97 +1,90 @@
 # Guía de Despliegue – Dashboard Control MO
+### Solo GitHub, sin servicios externos
 
-Con esta guía el dashboard estará disponible en una URL pública para que cualquier miembro del equipo pueda ingresar datos desde su celular o PC.
-
----
-
-## PASO 1 – Crear base de datos gratuita en Supabase
-
-1. Ve a **https://supabase.com** y crea una cuenta gratuita (con tu Gmail).
-2. Haz clic en **"New Project"**.
-   - **Organization**: el nombre que quieras (ej. `MPC-Cusco`)
-   - **Project name**: `db-mo-bc`
-   - **Database password**: elige una contraseña segura y guárdala
-   - **Region**: South America (São Paulo) – la más cercana a Perú
-3. Espera ~2 minutos a que el proyecto se cree.
+Los datos se guardan directamente como un archivo JSON en este repositorio.
+La URL pública es servida por GitHub Pages (gratis).
 
 ---
 
-## PASO 2 – Crear la tabla en Supabase
+## PASO 1 – Crear un Token de GitHub (PAT)
 
-1. En tu proyecto Supabase, ve al menú izquierdo → **SQL Editor**.
-2. Haz clic en **"+ New query"**.
-3. Copia y pega el contenido del archivo `supabase-setup.sql` de este repositorio.
-4. Haz clic en **"Run"** (botón verde).
-5. Deberías ver el mensaje: `Success. No rows returned` y luego una fila con `id=1`.
-
----
-
-## PASO 3 – Obtener las credenciales de Supabase
-
-1. En tu proyecto Supabase, ve al menú izquierdo → **Project Settings** → **API**.
-2. Copia estos dos valores:
-   - **Project URL**: algo como `https://abcdefghijk.supabase.co`
-   - **anon / public key**: una cadena larga que empieza con `eyJ...`
+1. Ve a **https://github.com/settings/tokens?type=beta** (Fine-grained tokens)
+2. Clic en **"Generate new token"**
+3. Completa:
+   - **Token name**: `dashboard-mo-bc`
+   - **Expiration**: 1 year (o la que prefieras)
+   - **Repository access**: Selecciona "Only select repositories" → elige `DB_MO_BC`
+4. En **"Permissions"** → busca **"Contents"** → selecciona **"Read and write"**
+5. Clic en **"Generate token"**
+6. **COPIA el token** (empieza con `github_pat_...`) — solo se muestra una vez
 
 ---
 
-## PASO 4 – Pegar las credenciales en el dashboard
+## PASO 2 – Pegar el token en el dashboard
 
-1. Abre el archivo `Dashboard_MO_Interactivo.html` en un editor de texto (Notepad, VS Code, etc.).
-2. Busca estas líneas (están al inicio del bloque `<script>`):
+1. Abre el archivo `Dashboard_MO_Interactivo.html` en un editor (VS Code, Notepad, etc.)
+2. Busca esta línea al inicio del bloque `<script>`:
 
 ```javascript
-const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
-const SUPABASE_KEY = 'TU_ANON_KEY_AQUI';
+const GH_TOKEN  = 'TU_GITHUB_TOKEN_AQUI';
 ```
 
-3. Reemplaza los valores:
+3. Reemplaza `TU_GITHUB_TOKEN_AQUI` con tu token real:
 
 ```javascript
-const SUPABASE_URL = 'https://abcdefghijk.supabase.co';   // ← tu URL real
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';  // ← tu key real
+const GH_TOKEN  = 'github_pat_11AAAA...';
 ```
 
 4. Guarda el archivo.
 
 ---
 
-## PASO 5 – Publicar en GitHub Pages
+## PASO 3 – Subir los cambios a GitHub
 
-1. Sube los cambios a GitHub:
+En la terminal (o git bash), dentro de la carpeta del proyecto:
 
 ```bash
 git add .
-git commit -m "Agregar integración Supabase y GitHub Pages"
+git commit -m "Agregar token y activar guardado en GitHub"
 git push
-```
-
-2. Ve a tu repositorio en GitHub: **https://github.com/davargas18-afk/DB_MO_BC**
-3. Haz clic en **Settings** (engranaje).
-4. En el menú izquierdo → **Pages**.
-5. En **"Source"** selecciona → **"GitHub Actions"**.
-6. Espera ~2 minutos.
-7. Tu dashboard estará disponible en:
-
-```
-https://davargas18-afk.github.io/DB_MO_BC/Dashboard_MO_Interactivo.html
 ```
 
 ---
 
-## PASO 6 – Compartir la URL
+## PASO 4 – Activar GitHub Pages
 
-Comparte este enlace con todo el equipo:
+1. Ve a **https://github.com/davargas18-afk/DB_MO_BC**
+2. Clic en **Settings** (pestaña superior)
+3. En el menú izquierdo → **Pages**
+4. En **"Source"** selecciona → **"GitHub Actions"**
+5. Espera ~2 minutos
+
+---
+
+## PASO 5 – Compartir la URL
 
 ```
 https://davargas18-afk.github.io/DB_MO_BC/Dashboard_MO_Interactivo.html
 ```
 
-Cualquier persona con ese enlace podrá:
-- Ver el dashboard
-- Ingresar horas en la pestaña "Registro Semanal"
-- Los datos se guardan automáticamente en la nube
-- Todos ven los mismos datos en tiempo real
+Cualquier persona con ese enlace puede:
+- Ver todos los datos del proyecto
+- Ingresar horas en "Registro Semanal"
+- Los datos se guardan automáticamente en el archivo `data/registros.json` del repo
+
+---
+
+## ¿Cómo funciona?
+
+```
+Usuario ingresa datos
+        ↓
+Dashboard llama a la API de GitHub
+        ↓
+GitHub actualiza data/registros.json en el repo
+        ↓
+Próxima vez que alguien abre el dashboard, carga ese archivo
+```
 
 ---
 
@@ -99,10 +92,10 @@ Cualquier persona con ese enlace podrá:
 
 | Problema | Solución |
 |----------|----------|
-| "Error al guardar" | Verifica que `SUPABASE_URL` y `SUPABASE_KEY` estén correctos |
-| Página no carga | Espera 2-3 min después del primer push, GitHub Pages necesita tiempo |
-| Datos no se ven | Verifica que ejecutaste el SQL del Paso 2 correctamente |
-| "⚠️ Sin conexión – modo local" | El SUPABASE_URL o KEY está incorrecto en el HTML |
+| "❌ Error al guardar" | Verifica que el token esté bien pegado en el HTML |
+| Datos no se muestran | Verifica que `data/registros.json` existe en el repo |
+| Página 404 | Espera 2-3 min después del primer push |
+| Token vencido | Crea un nuevo token y actualiza el HTML |
 
 ---
 
@@ -111,7 +104,8 @@ Cualquier persona con ese enlace podrá:
 ```
 DB_MO_BC/
 ├── Dashboard_MO_Interactivo.html   ← El dashboard (frontend)
-├── supabase-setup.sql              ← SQL para crear la tabla en Supabase
+├── data/
+│   └── registros.json              ← Aquí se guardan las horas ingresadas
 ├── INSTRUCCIONES_DEPLOY.md         ← Esta guía
 └── .github/
     └── workflows/
