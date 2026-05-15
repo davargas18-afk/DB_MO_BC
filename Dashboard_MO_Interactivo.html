@@ -403,10 +403,8 @@ function _deepMergeProg(base, overlay){
   return r;
 }
 
-async function saveData(forceRegistros){
-  // Sin token: mostrar modal en vez de error críptico
+async function saveData(forceRegistros, _retry=0){
   if(!GH_TOKEN){ showTokenModal(); toast('⚠️ Configura el token primero'); return; }
-  // Si ya se está guardando: reencolar en lugar de perder cambios
   if(_saving){
     clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(()=>saveData(forceRegistros), 3000);
@@ -420,9 +418,9 @@ async function saveData(forceRegistros){
     const apiUrl = 'https://api.github.com/repos/'+GH_OWNER+'/'+GH_REPO+'/contents/'+GH_FILE;
     const hdrs = {'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'};
 
-    // 1. Leer SHA y datos remotos actuales
+    // 1. Leer SHA y datos remotos frescos
     let sha, remReg={}, remProg={}, remN=4;
-    const shaRes = await fetch(apiUrl+'?ref='+GH_BRANCH, {headers:hdrs});
+    const shaRes = await fetch(apiUrl+'?ref='+GH_BRANCH, {headers:hdrs, cache:'no-store'});
     if(shaRes.status===401) throw new Error('Token inválido o vencido — haz clic en ⚙️ Token para actualizarlo');
     if(shaRes.status===403) throw new Error('Sin permisos — verifica que el token tenga "Contents: Read & Write"');
     if(shaRes.ok){
@@ -432,7 +430,7 @@ async function saveData(forceRegistros){
       throw new Error('No se pudo leer el archivo remoto (HTTP '+shaRes.status+')');
     }
 
-    // 2. Construir datos finales con merge
+    // 2. Merge y codificar
     const finalReg  = forceRegistros!==undefined ? forceRegistros : deepMergeRegistros(remReg, localChanges);
     const finalProg = _deepMergeProg(remProg, localProgChanges);
     const finalN    = Math.max(remN, nSemanas);
@@ -441,13 +439,14 @@ async function saveData(forceRegistros){
     const body      = {message:'Actualizar datos MO', content, branch:GH_BRANCH};
     if(sha) body.sha = sha;
 
-    // 3. Guardar
+    // 3. PUT
     const putRes = await fetch(apiUrl, {method:'PUT', headers:hdrs, body:JSON.stringify(body)});
-    if(putRes.status===409||putRes.status===422){
-      // Conflicto de SHA (otro usuario guardó primero): reintentar automáticamente
-      _saving = false;
-      await new Promise(r=>setTimeout(r,1500));
-      return saveData(forceRegistros);
+
+    if((putRes.status===409||putRes.status===422) && _retry < 4){
+      // SHA desincronizado: liberar lock con setTimeout para que finally corra primero,
+      // luego reintentar con SHA fresco
+      setTimeout(()=>saveData(forceRegistros, _retry+1), 1000+_retry*500);
+      return; // finally corre → _saving=false → reintento arranca limpio
     }
     if(!putRes.ok){
       const err = await putRes.json().catch(()=>({}));
@@ -458,7 +457,7 @@ async function saveData(forceRegistros){
     updateLastSave();
   } catch(e){
     console.error('saveData:', e);
-    toast('❌ '+e.message, 5000);
+    toast('❌ '+e.message, 6000);
     document.getElementById('last-save').textContent = '⚠️ Error – reintenta';
   } finally { _saving=false; }
 }
