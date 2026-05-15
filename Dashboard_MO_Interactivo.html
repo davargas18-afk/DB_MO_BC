@@ -145,6 +145,12 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 .modal-box a{color:#0E7C7B;text-decoration:underline}
 .btn-token{background:none;border:1.5px solid rgba(255,255,255,.5);color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-left:10px}
 .btn-token:hover{background:rgba(255,255,255,.15)}
+/* Programación */
+.semana-selector-container{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.prog-inp{width:54px;padding:5px 4px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+.prog-inp:focus{outline:none;border-color:#2563EB;background:#eff6ff}
+tfoot td{font-weight:700;font-size:12px;padding:10px}
+.btn-add-semana{min-width:56px!important;border-style:dashed!important;color:#0E7C7B!important;font-size:18px!important;padding:6px!important}
 
 @media (max-width:640px){
   .header h1{font-size:18px}
@@ -196,6 +202,7 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
   <button class="tab active" data-panel="overview">📈 Vista General</button>
   <button class="tab" data-panel="partidas">📋 Partidas</button>
   <button class="tab" data-panel="registro">✍️ Registro Semanal</button>
+  <button class="tab" data-panel="programacion">📅 Programación</button>
   <button class="tab" data-panel="analisis">🔍 Análisis</button>
 </div>
 
@@ -272,12 +279,7 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 
 <!-- PANEL 3: REGISTRO SEMANAL -->
 <div class="panel" id="panel-registro">
-  <div class="semana-selector">
-    <button class="semana-btn active" data-semana="1">📅 Semana 1</button>
-    <button class="semana-btn" data-semana="2">📅 Semana 2</button>
-    <button class="semana-btn" data-semana="3">📅 Semana 3</button>
-    <button class="semana-btn" data-semana="4">📅 Semana 4</button>
-  </div>
+  <div class="semana-selector-container" id="reg-semana-sel"></div>
 
   <div class="filters">
     <input type="text" id="reg-search" placeholder="🔍 Filtrar partidas para registrar..." />
@@ -324,6 +326,12 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 
 </div>
 
+<!-- PANEL 5: PROGRAMACIÓN -->
+<div class="panel" id="panel-programacion">
+  <div class="semana-selector-container" id="prog-semana-sel"></div>
+  <div id="prog-tabla"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -356,40 +364,87 @@ const DIAS = ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'];
 // STATE & STORAGE
 // ========================================================
 let registros = {};
+let programacion = {};
+let nSemanas = 4;
+let localProgChanges = {};
 let currentSemana = 1;
+let showAcumulado = false;
 let sortCol = 'item', sortDir = 1;
 let regFilters = {search:'',spec:'',onlyMo:false};
 let tablaFilters = {search:'',spec:'',estado:''};
 let charts = {};
 
-async function loadRegistros(){
+function _decodeGHContent(content){ return JSON.parse(decodeURIComponent(escape(atob(content.replace(/\n/g,''))))); }
+
+async function loadData(){
   try {
     document.getElementById('last-save').textContent = 'Cargando datos...';
-    // Usar la API de GitHub (no raw URL) para evitar caché del CDN
-    const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE + '?ref=' + GH_BRANCH;
-    const headers = { 'Accept': 'application/vnd.github+json' };
-    if(GH_TOKEN) headers['Authorization'] = 'Bearer ' + GH_TOKEN;
-    const res = await fetch(apiUrl, { headers, cache: 'no-store' });
-    if(res.status === 404) return {};
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const jsonStr = decodeURIComponent(escape(atob(data.content.replace(/\n/g,''))));
-    return JSON.parse(jsonStr);
+    const apiUrl = 'https://api.github.com/repos/'+GH_OWNER+'/'+GH_REPO+'/contents/'+GH_FILE+'?ref='+GH_BRANCH;
+    const headers = {'Accept':'application/vnd.github+json'};
+    if(GH_TOKEN) headers['Authorization'] = 'Bearer '+GH_TOKEN;
+    const res = await fetch(apiUrl, {headers, cache:'no-store'});
+    if(res.status===404) return {registros:{}, programacion:{}, nSemanas:4};
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const d = await res.json();
+    const raw = _decodeGHContent(d.content);
+    // Migración: formato antiguo no tiene "v"
+    if(!raw.v) return {registros:raw, programacion:{}, nSemanas:4};
+    return {registros:raw.registros||{}, programacion:raw.programacion||{}, nSemanas:raw.n_semanas||4};
   } catch(e) {
-    console.error('loadRegistros:', e);
+    console.error('loadData:', e);
     document.getElementById('last-save').textContent = '⚠️ Error al cargar';
-    return {};
+    return {registros:{}, programacion:{}, nSemanas:4};
   }
 }
 
+function _deepMergeProg(base, overlay){
+  const r = JSON.parse(JSON.stringify(base));
+  for(const s in overlay){ if(!r[s]) r[s]={}; for(const item in overlay[s]){ r[s][item]=Object.assign({},r[s][item]||{p:0,o:0,op:0},overlay[s][item]); } }
+  return r;
+}
+
+async function saveData(forceRegistros){
+  if(_saving) return;
+  _saving = true;
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = null;
+  try {
+    document.getElementById('last-save').textContent = 'Guardando...';
+    const apiUrl = 'https://api.github.com/repos/'+GH_OWNER+'/'+GH_REPO+'/contents/'+GH_FILE;
+    const headers = {'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'};
+    let sha, remReg={}, remProg={}, remN=4;
+    const shaRes = await fetch(apiUrl+'?ref='+GH_BRANCH, {headers});
+    if(shaRes.ok){
+      const d = await shaRes.json(); sha = d.sha;
+      try { const raw=_decodeGHContent(d.content); if(!raw.v){remReg=raw;}else{remReg=raw.registros||{};remProg=raw.programacion||{};remN=raw.n_semanas||4;} } catch(e){}
+    }
+    const finalReg  = forceRegistros!==undefined ? forceRegistros : deepMergeRegistros(remReg, localChanges);
+    const finalProg = _deepMergeProg(remProg, localProgChanges);
+    const finalN    = Math.max(remN, nSemanas);
+    const finalData = {v:2, n_semanas:finalN, registros:finalReg, programacion:finalProg};
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(finalData, null, 2))));
+    const body = {message:'Actualizar datos MO', content, branch:GH_BRANCH};
+    if(sha) body.sha = sha;
+    const putRes = await fetch(apiUrl, {method:'PUT', headers, body:JSON.stringify(body)});
+    if(!putRes.ok){const err=await putRes.json(); throw new Error(err.message||'Error al guardar');}
+    registros=finalReg; programacion=finalProg; nSemanas=finalN;
+    localChanges={}; localProgChanges={};
+    updateLastSave();
+  } catch(e) {
+    console.error('saveData:', e);
+    toast('❌ Error al guardar: '+e.message);
+    document.getElementById('last-save').textContent = '⚠️ Error – reintenta';
+  } finally { _saving=false; }
+}
+
 async function sincronizar(){
-  if(Object.keys(localChanges).length > 0){
-    if(!confirm('Tienes cambios sin guardar. ¿Sincronizar de todos modos? Se perderán los cambios no guardados.')) return;
-  }
-  registros = await loadRegistros();
-  localChanges = {};
+  const pend = Object.keys(localChanges).length>0 || Object.keys(localProgChanges).length>0;
+  if(pend && !confirm('Tienes cambios sin guardar. ¿Sincronizar de todos modos? Se perderán los cambios no guardados.')) return;
+  const data = await loadData();
+  registros=data.registros; programacion=data.programacion; nSemanas=data.nSemanas;
+  localChanges={}; localProgChanges={};
   renderAll();
-  if(Object.keys(registros).length > 0) updateLastSave(); else document.getElementById('last-save').textContent = 'Sin registros aún';
+  (Object.keys(registros).length>0||Object.keys(programacion).length>0) ? updateLastSave() : document.getElementById('last-save').textContent='Sin registros aún';
   toast('✓ Datos sincronizados');
 }
 
@@ -412,42 +467,6 @@ function deepMergeRegistros(base, overlay) {
   return result;
 }
 
-// forceData: si se pasa, guarda ese objeto directamente (ej: tras limpiar semana)
-async function saveRegistros(forceData){
-  if(_saving) return;
-  _saving = true;
-  clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = null;
-  try {
-    document.getElementById('last-save').textContent = 'Guardando...';
-    const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
-    const headers = { 'Authorization':'Bearer '+GH_TOKEN, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' };
-    // Obtener SHA y datos remotos actuales para merge
-    let sha, remoteData = {};
-    const shaRes = await fetch(apiUrl + '?ref=' + GH_BRANCH, { headers });
-    if(shaRes.ok){
-      const d = await shaRes.json();
-      sha = d.sha;
-      try { remoteData = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))))); } catch(e){}
-    }
-    // Merge: remoto + cambios locales (o forceData si se indica)
-    const finalData = forceData !== undefined ? forceData : deepMergeRegistros(remoteData, localChanges);
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(finalData, null, 2))));
-    const body = { message:'Actualizar registros MO', content, branch:GH_BRANCH };
-    if(sha) body.sha = sha;
-    const putRes = await fetch(apiUrl, { method:'PUT', headers, body:JSON.stringify(body) });
-    if(!putRes.ok){ const err = await putRes.json(); throw new Error(err.message||'Error al guardar'); }
-    registros = finalData;
-    localChanges = {};
-    updateLastSave();
-  } catch(e) {
-    console.error('saveRegistros:', e);
-    toast('❌ Error al guardar: ' + e.message);
-    document.getElementById('last-save').textContent = '⚠️ Error – reintenta';
-  } finally {
-    _saving = false;
-  }
-}
 function updateLastSave(){
   const d = new Date();
   const t = d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
@@ -812,7 +831,7 @@ function renderRegistro(){
       // Indicar cambios pendientes y auto-guardar tras 2 s de inactividad
       document.getElementById('last-save').textContent = '● Sin guardar';
       clearTimeout(_autoSaveTimer);
-      _autoSaveTimer = setTimeout(()=>saveRegistros(), 2000);
+      _autoSaveTimer = setTimeout(()=>saveData(), 2000);
       renderRegistro();
     });
   });
@@ -1007,15 +1026,7 @@ function bindEvents(){
       renderPartidas();
     });
   });
-  // Semana selector
-  document.querySelectorAll('.semana-btn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      document.querySelectorAll('.semana-btn').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active');
-      currentSemana = +b.dataset.semana;
-      renderRegistro();
-    });
-  });
+  // Semana selector se gestiona dinámicamente en renderSemanaSelector()
   // Registro filters
   document.getElementById('reg-search').addEventListener('input', e=>{regFilters.search=e.target.value; renderRegistro();});
   document.getElementById('reg-filter-spec').addEventListener('change', e=>{regFilters.spec=e.target.value; renderRegistro();});
@@ -1031,23 +1042,177 @@ function bindEvents(){
     if(confirm(`¿Limpiar TODOS los registros de la Semana ${currentSemana}? Esta acción no se puede deshacer.`)){
       delete registros[currentSemana];
       delete localChanges[currentSemana];
-      await saveRegistros(registros); // guarda estado completo (con la semana eliminada)
+      await saveData(registros); // guarda estado completo (con la semana eliminada)
       renderAll();
       toast('Semana '+currentSemana+' limpiada');
     }
   });
   document.getElementById('btn-guardar').addEventListener('click', ()=>{
     clearTimeout(_autoSaveTimer);
-    saveRegistros();
+    saveData();
     toast('Guardando...');
   });
   document.getElementById('btn-export').addEventListener('click', exportCSV);
 }
 
+function renderSemanaSelector(){
+  ['reg-semana-sel','prog-semana-sel'].forEach(id=>{
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    let html='';
+    for(let i=1;i<=nSemanas;i++){
+      html+=`<button class="semana-btn${i===currentSemana?' active':''}" data-semana="${i}">📅 S${i}</button>`;
+    }
+    html+=`<button class="semana-btn btn-add-semana" title="Agregar semana">+</button>`;
+    sel.innerHTML=html;
+    sel.querySelectorAll('.semana-btn:not(.btn-add-semana)').forEach(b=>{
+      b.addEventListener('click',()=>{ currentSemana=+b.dataset.semana; renderSemanaSelector(); renderRegistro(); renderProgramacion(); });
+    });
+    sel.querySelectorAll('.btn-add-semana').forEach(b=>{
+      b.addEventListener('click',()=>{
+        nSemanas++; currentSemana=nSemanas;
+        document.getElementById('last-save').textContent='● Sin guardar';
+        clearTimeout(_autoSaveTimer); _autoSaveTimer=setTimeout(()=>saveData(),2000);
+        renderSemanaSelector(); renderRegistro(); renderProgramacion();
+        toast('Semana '+nSemanas+' agregada');
+      });
+    });
+  });
+}
+
+function renderProgramacion(){
+  const cont=document.getElementById('prog-tabla'); if(!cont) return;
+  const fmt=v=>'S/. '+v.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const detalle=PARTIDAS.filter(p=>!p.is_group&&p.has_mo);
+
+  const rows=detalle.map(p=>{
+    let hPlan={p:0,o:0,op:0}, hEjec={p:0,o:0,op:0};
+    if(showAcumulado){
+      for(let s=1;s<=currentSemana;s++){
+        const pl=(programacion[s]||{})[p.item]||{p:0,o:0,op:0};
+        hPlan.p+=pl.p||0; hPlan.o+=pl.o||0; hPlan.op+=pl.op||0;
+        const ej=horasEjecutadasSemana(p.item,s);
+        hEjec.p+=ej.p; hEjec.o+=ej.o; hEjec.op+=ej.op;
+      }
+    } else {
+      hPlan=(programacion[currentSemana]||{})[p.item]||{p:0,o:0,op:0};
+      hEjec=horasEjecutadasSemana(p.item,currentSemana);
+    }
+    const cPlan=costoPartida(p,hPlan), cEjec=costoPartida(p,hEjec);
+    const pct=cPlan>0?cEjec/cPlan:0, saldo=cPlan-cEjec;
+    return {p,hPlan,hEjec,cPlan,cEjec,pct,saldo};
+  });
+
+  const totPlan=rows.reduce((a,r)=>a+r.cPlan,0);
+  const totEjec=rows.reduce((a,r)=>a+r.cEjec,0);
+  const totSaldo=totPlan-totEjec;
+  const totPct=totPlan>0?totEjec/totPlan:0;
+
+  const rowsActivos=rows.filter(r=>r.cPlan>0||r.cEjec>0);
+
+  cont.innerHTML=`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <span class="filter-label">Vista:</span>
+      <button class="chip${!showAcumulado?' active':''}" id="btn-vis-sem">Semana ${currentSemana}</button>
+      <button class="chip${showAcumulado?' active':''}" id="btn-vis-acum">Acumulado S1–S${currentSemana}</button>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-card previsto"><div class="kpi-label">Costo Programado</div><div class="kpi-value">${fmt(totPlan)}</div><div class="kpi-sub">${showAcumulado?'S1–S'+currentSemana:'Semana '+currentSemana}</div></div>
+      <div class="kpi-card ejecutado"><div class="kpi-label">Costo Ejecutado</div><div class="kpi-value">${fmt(totEjec)}</div><div class="kpi-sub">${showAcumulado?'S1–S'+currentSemana:'Semana '+currentSemana}</div></div>
+      <div class="kpi-card saldo"><div class="kpi-label">Saldo</div><div class="kpi-value" style="color:${totSaldo>=0?'#16A34A':'#DC2626'}">${fmt(totSaldo)}</div><div class="kpi-sub">${totSaldo>=0?'Dentro de lo programado':'Sobre lo programado'}</div></div>
+      <div class="kpi-card avance"><div class="kpi-label">Avance s/ Prog.</div><div class="kpi-value">${totPlan>0?(totPct*100).toFixed(1)+'%':'—'}</div><div class="kpi-sub">Ejec. / Programado</div></div>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th><th>Descripción</th>
+          <th colspan="3" style="text-align:center;background:rgba(37,99,235,.12)">${showAcumulado?'HH Prog. Acum.':'HH Programadas S'+currentSemana}</th>
+          <th style="text-align:right;background:rgba(37,99,235,.08)">C. Prog.</th>
+          <th style="text-align:right;background:rgba(22,163,74,.08)">C. Ejec.</th>
+          <th style="text-align:center">% Ejec.</th>
+          <th style="text-align:right">Saldo</th>
+        </tr>
+        <tr style="background:#f9fafb;font-size:10px">
+          <th></th><th></th>
+          <th style="text-align:center;color:#2563EB">Peón</th>
+          <th style="text-align:center;color:#F59E0B">Oficial</th>
+          <th style="text-align:center;color:#16A34A">Operario</th>
+          <th></th><th></th><th></th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsActivos.length===0?`<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">Sin datos programados para esta semana.<br>Ingresa las horas previstas en las columnas Peón / Oficial / Operario.</td></tr>`:''}
+        ${rowsActivos.map(r=>{
+          const fw=Math.min(r.pct*100,110); const fc=r.pct>1.1?'over':r.pct<0.05?'low':'';
+          return `<tr>
+            <td class="item-cell">${r.p.item}</td>
+            <td class="desc-cell" style="max-width:220px">${r.p.desc}</td>
+            ${showAcumulado
+              ?`<td class="num-cell">${r.hPlan.p.toFixed(1)}</td><td class="num-cell">${r.hPlan.o.toFixed(1)}</td><td class="num-cell">${r.hPlan.op.toFixed(1)}</td>`
+              :`<td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="p" value="${r.hPlan.p||''}"></td>
+               <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="o" value="${r.hPlan.o||''}"></td>
+               <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="op" value="${r.hPlan.op||''}"></td>`
+            }
+            <td class="num-cell">${r.cPlan>0?fmt(r.cPlan):'—'}</td>
+            <td class="num-cell">${r.cEjec>0?fmt(r.cEjec):'—'}</td>
+            <td style="text-align:center">${r.cPlan>0?`<div class="progress-bar"><div class="progress-fill ${fc}" style="width:${fw}%"></div><span class="progress-text">${(r.pct*100).toFixed(0)}%</span></div>`:'—'}</td>
+            <td class="num-cell" style="color:${r.saldo>=0?'#16A34A':'#DC2626'};font-weight:600">${r.cPlan>0?fmt(r.saldo):'—'}</td>
+          </tr>`;
+        }).join('')}
+        ${!showAcumulado&&detalle.filter(p=>!(programacion[currentSemana]||{})[p.item]||(((programacion[currentSemana]||{})[p.item]?.p||0)+((programacion[currentSemana]||{})[p.item]?.o||0)+((programacion[currentSemana]||{})[p.item]?.op||0))===0).slice(0,50).map(r=>{
+          return `<tr style="opacity:.55">
+            <td class="item-cell">${r.item}</td>
+            <td class="desc-cell" style="max-width:220px">${r.desc}</td>
+            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="p" value=""></td>
+            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="o" value=""></td>
+            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="op" value=""></td>
+            <td class="num-cell">—</td><td class="num-cell">—</td><td>—</td><td>—</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">TOTAL</td>
+          <td colspan="3"></td>
+          <td class="num-cell">${fmt(totPlan)}</td>
+          <td class="num-cell">${fmt(totEjec)}</td>
+          <td style="text-align:center">${totPlan>0?(totPct*100).toFixed(1)+'%':'—'}</td>
+          <td class="num-cell" style="color:${totSaldo>=0?'#16A34A':'#DC2626'}">${fmt(totSaldo)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    </div></div>
+    ${!showAcumulado?`<div class="alerts" style="margin-top:12px"><div class="alert alert-info"><div class="alert-icon">💡</div><div>Ingresa las horas <strong>planificadas</strong> para la Semana ${currentSemana}. Puedes re-programar en cualquier momento. El ejecutado se actualiza desde el Registro Semanal.</div></div></div>`:''}
+  `;
+
+  document.getElementById('btn-vis-sem').addEventListener('click',()=>{showAcumulado=false;renderProgramacion();});
+  document.getElementById('btn-vis-acum').addEventListener('click',()=>{showAcumulado=true;renderProgramacion();});
+
+  if(!showAcumulado){
+    cont.querySelectorAll('.prog-inp').forEach(inp=>{
+      inp.addEventListener('change',e=>{
+        const item=e.target.dataset.item, cat=e.target.dataset.cat, val=parseFloat(e.target.value)||0;
+        if(!programacion[currentSemana]) programacion[currentSemana]={};
+        if(!programacion[currentSemana][item]) programacion[currentSemana][item]={p:0,o:0,op:0};
+        programacion[currentSemana][item][cat]=val;
+        if(!localProgChanges[currentSemana]) localProgChanges[currentSemana]={};
+        if(!localProgChanges[currentSemana][item]) localProgChanges[currentSemana][item]={p:0,o:0,op:0};
+        localProgChanges[currentSemana][item][cat]=val;
+        document.getElementById('last-save').textContent='● Sin guardar';
+        clearTimeout(_autoSaveTimer); _autoSaveTimer=setTimeout(()=>saveData(),2000);
+        renderProgramacion();
+      });
+    });
+  }
+}
+
 function renderAll(){
+  renderSemanaSelector();
   renderOverview();
   renderPartidas();
   renderRegistro();
+  renderProgramacion();
   renderAnalisis();
 }
 
@@ -1076,13 +1241,14 @@ initSpecFilters();
 bindEvents();
 (async ()=>{
   if(!GH_TOKEN){ showTokenModal(); }
-  registros = await loadRegistros();
+  const data = await loadData();
+  registros = data.registros;
+  programacion = data.programacion;
+  nSemanas = data.nSemanas;
   renderAll();
-  if(Object.keys(registros).length === 0){
-    document.getElementById('last-save').textContent = 'Sin registros aún';
-  } else {
-    updateLastSave();
-  }
+  const hasData = Object.keys(registros).length>0 || Object.keys(programacion).length>0;
+  document.getElementById('last-save').textContent = hasData ? '' : 'Sin registros aún';
+  if(hasData) updateLastSave();
 })();
 </script>
 </body>
