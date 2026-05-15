@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Control MO – Pasaje Balcón Cusqueño</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#f3f4f6;color:#1f2937;line-height:1.5;-webkit-font-smoothing:antialiased}
+.container{max-width:1400px;margin:0 auto;padding:16px}
+
+/* Header */
+.header{background:linear-gradient(135deg,#1E3A5F 0%,#0E7C7B 100%);color:#fff;padding:24px 16px;border-radius:12px;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.header h1{font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-.02em}
+.header .sub{font-size:13px;opacity:.85;font-weight:400}
+.header .meta{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:12px;opacity:.9}
+.header .meta span{display:inline-flex;align-items:center;gap:6px}
+.header .meta strong{font-weight:600}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;background:#fff;padding:6px;border-radius:12px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:1;min-width:120px;padding:12px 14px;border:none;background:transparent;color:#6b7280;font-weight:600;font-size:13px;cursor:pointer;border-radius:8px;transition:all .2s;white-space:nowrap}
+.tab.active{background:linear-gradient(135deg,#1E3A5F,#0E7C7B);color:#fff;box-shadow:0 2px 6px rgba(14,124,123,.3)}
+.tab:hover:not(.active){background:#f3f4f6}
+
+/* Panels */
+.panel{display:none}
+.panel.active{display:block;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* KPI Cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #0E7C7B;transition:transform .15s}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.kpi-label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:6px}
+.kpi-value{font-size:22px;font-weight:700;color:#1f2937;letter-spacing:-.02em}
+.kpi-sub{font-size:11px;color:#9ca3af;margin-top:4px}
+.kpi-card.previsto{border-left-color:#0E7C7B}
+.kpi-card.ejecutado{border-left-color:#16A34A}
+.kpi-card.saldo{border-left-color:#7C3AED}
+.kpi-card.avance{border-left-color:#F59E0B}
+.kpi-card.horas-p{border-left-color:#2563EB}
+.kpi-card.horas-e{border-left-color:#DB2777}
+.kpi-card.eficiencia{border-left-color:#059669}
+
+/* Charts */
+.chart-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:20px}
+@media(min-width:768px){.chart-grid{grid-template-columns:1fr 1fr}}
+.chart-card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.chart-card.full{grid-column:1/-1}
+.chart-title{font-size:13px;font-weight:700;color:#1f2937;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.chart-title::before{content:"";width:4px;height:16px;background:linear-gradient(180deg,#1E3A5F,#0E7C7B);border-radius:2px}
+.chart-container{position:relative;height:280px}
+.chart-container.tall{height:380px}
+
+/* Filters */
+.filters{background:#fff;padding:14px;border-radius:12px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.filters input,.filters select{padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:#1f2937;transition:border-color .15s}
+.filters input:focus,.filters select:focus{outline:none;border-color:#0E7C7B}
+.filters input{flex:1;min-width:180px}
+.filter-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:16px;font-size:12px;font-weight:500;color:#4b5563;cursor:pointer;transition:all .15s}
+.chip.active{background:#0E7C7B;color:#fff;border-color:#0E7C7B}
+.chip:hover:not(.active){background:#e5e7eb}
+
+/* Table */
+.table-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:780px}
+thead{background:linear-gradient(135deg,#1E3A5F,#0E7C7B);color:#fff;position:sticky;top:0}
+th{padding:11px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{background:rgba(255,255,255,.08)}
+th .sort-ind{opacity:.5;margin-left:4px;font-size:10px}
+td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+tr:hover td{background:#f9fafb}
+tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.item-cell{font-family:"SF Mono",Monaco,monospace;font-size:11px;color:#6b7280;white-space:nowrap}
+.desc-cell{max-width:280px;font-weight:500}
+.num-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.progress-bar{position:relative;width:90px;height:18px;background:#f3f4f6;border-radius:9px;overflow:hidden;display:inline-block}
+.progress-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#16A34A,#0E7C7B);border-radius:9px;transition:width .3s}
+.progress-fill.over{background:linear-gradient(90deg,#F59E0B,#DC2626)}
+.progress-fill.low{background:linear-gradient(90deg,#9CA3AF,#6B7280)}
+.progress-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1f2937;text-shadow:0 0 2px rgba(255,255,255,.6)}
+.badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.badge.no-mo{background:#f3f4f6;color:#9ca3af}
+.badge.no-iniciado{background:#e0e7ff;color:#3730a3}
+.badge.progreso{background:#fef3c7;color:#92400e}
+.badge.completado{background:#d1fae5;color:#065f46}
+.badge.sobre{background:#fee2e2;color:#991b1b}
+
+/* Registro Semanal */
+.registro-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.semana-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.semana-btn{flex:1;min-width:100px;padding:11px;border:2px solid #e5e7eb;background:#fff;color:#4b5563;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;transition:all .15s}
+.semana-btn.active{background:linear-gradient(135deg,#1E3A5F,#0E7C7B);color:#fff;border-color:#0E7C7B;box-shadow:0 2px 6px rgba(14,124,123,.25)}
+.registro-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.partida-input-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.day-input{display:flex;flex-direction:column;gap:3px}
+.day-label{font-size:9px;font-weight:700;text-align:center;color:#6b7280;text-transform:uppercase}
+.day-input input{width:100%;padding:6px 4px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+.day-input input:focus{outline:none;border-color:#0E7C7B;background:#f0fdfa}
+.cat-input-row{display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:center;margin-bottom:8px}
+.cat-name{font-size:12px;font-weight:700;color:#374151}
+.btn{padding:10px 16px;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-primary{background:linear-gradient(135deg,#1E3A5F,#0E7C7B);color:#fff}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(14,124,123,.3)}
+.btn-secondary{background:#f3f4f6;color:#4b5563}
+.btn-secondary:hover{background:#e5e7eb}
+.btn-danger{background:#fee2e2;color:#991b1b}
+.btn-danger:hover{background:#fecaca}
+
+.alerts{display:grid;gap:10px;margin-top:16px}
+.alert{padding:12px 14px;border-radius:10px;display:flex;align-items:flex-start;gap:10px;font-size:13px}
+.alert-warn{background:#fef3c7;color:#78350f;border-left:4px solid #F59E0B}
+.alert-err{background:#fee2e2;color:#7f1d1d;border-left:4px solid #DC2626}
+.alert-info{background:#dbeafe;color:#1e3a8a;border-left:4px solid #2563EB}
+.alert-ok{background:#d1fae5;color:#064e3b;border-left:4px solid #16A34A}
+.alert-icon{font-size:18px;line-height:1;flex-shrink:0}
+.alert strong{font-weight:700}
+
+.empty-state{text-align:center;padding:40px 20px;color:#9ca3af}
+.empty-state-icon{font-size:36px;margin-bottom:10px;opacity:.6}
+
+.summary-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:14px;background:#f9fafb;border-radius:10px;margin-top:14px}
+.summary-strip .mini{text-align:center}
+.summary-strip .mini-label{font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase}
+.summary-strip .mini-val{font-size:16px;font-weight:700;color:#1f2937;margin-top:2px}
+
+.footer-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .3s;z-index:100}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-8px)}
+
+@media (max-width:640px){
+  .header h1{font-size:18px}
+  .kpi-value{font-size:18px}
+  .chart-container{height:240px}
+  .partida-input-grid{grid-template-columns:repeat(7,1fr);gap:4px}
+  .day-input input{font-size:11px;padding:5px 2px}
+  th,td{padding:8px 6px}
+  table{font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+  <h1>📊 Control de Mano de Obra</h1>
+  <div class="sub">Remodelación Pasaje Balcón Cusqueño · Municipalidad Provincial del Cusco · CUI 2655049</div>
+  <div class="meta">
+    <span>📍 <strong>Cusco, Perú</strong></span>
+    <span>🗓️ <strong>4 semanas</strong></span>
+    <span>👷 <strong id="meta-partidas">— partidas con MO</strong></span>
+    <span>💾 <span id="last-save">Sin guardar aún</span></span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" data-panel="overview">📈 Vista General</button>
+  <button class="tab" data-panel="partidas">📋 Partidas</button>
+  <button class="tab" data-panel="registro">✍️ Registro Semanal</button>
+  <button class="tab" data-panel="analisis">🔍 Análisis</button>
+</div>
+
+<!-- PANEL 1: OVERVIEW -->
+<div class="panel active" id="panel-overview">
+  <div class="kpi-grid">
+    <div class="kpi-card previsto"><div class="kpi-label">Costo MO Previsto</div><div class="kpi-value" id="kpi-prev">—</div><div class="kpi-sub">Presupuesto base</div></div>
+    <div class="kpi-card ejecutado"><div class="kpi-label">Costo Ejecutado</div><div class="kpi-value" id="kpi-ej">—</div><div class="kpi-sub" id="kpi-ej-sub">A la fecha</div></div>
+    <div class="kpi-card saldo"><div class="kpi-label">Saldo Disponible</div><div class="kpi-value" id="kpi-saldo">—</div><div class="kpi-sub" id="kpi-saldo-sub">—</div></div>
+    <div class="kpi-card avance"><div class="kpi-label">Avance MO</div><div class="kpi-value" id="kpi-avance">—</div><div class="kpi-sub">Costo ejecutado / previsto</div></div>
+    <div class="kpi-card horas-p"><div class="kpi-label">Horas Previstas</div><div class="kpi-value" id="kpi-hp">—</div><div class="kpi-sub">Total HH presupuestadas</div></div>
+    <div class="kpi-card horas-e"><div class="kpi-label">Horas Ejecutadas</div><div class="kpi-value" id="kpi-he">—</div><div class="kpi-sub" id="kpi-he-sub">—</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">MO Previsto por Categoría</div>
+      <div class="chart-container"><canvas id="chart-cat"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">MO Previsto por Especialidad</div>
+      <div class="chart-container"><canvas id="chart-spec"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Top 10 Partidas con Mayor Costo MO</div>
+      <div class="chart-container tall"><canvas id="chart-top10"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Avance Semanal Acumulado (Costo MO)</div>
+      <div class="chart-container"><canvas id="chart-semanas"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL 2: PARTIDAS -->
+<div class="panel" id="panel-partidas">
+  <div class="filters">
+    <input type="text" id="search" placeholder="🔍 Buscar partida por código o descripción..." />
+    <select id="filter-spec">
+      <option value="">Todas las especialidades</option>
+    </select>
+    <select id="filter-estado">
+      <option value="">Todos los estados</option>
+      <option value="no-iniciado">No iniciado</option>
+      <option value="progreso">En progreso</option>
+      <option value="completado">Completado</option>
+      <option value="sobre">Sobreejecutado</option>
+      <option value="no-mo">Sin MO</option>
+    </select>
+    <button class="btn btn-secondary" id="btn-reset-filters">Limpiar</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table id="tabla-partidas">
+        <thead>
+          <tr>
+            <th data-sort="item">Item <span class="sort-ind">↕</span></th>
+            <th data-sort="desc">Descripción <span class="sort-ind">↕</span></th>
+            <th data-sort="cant" class="num-cell">Cant.</th>
+            <th data-sort="h_prev" class="num-cell">HH Prev.</th>
+            <th data-sort="h_ej" class="num-cell">HH Ejec.</th>
+            <th data-sort="c_prev" class="num-cell">S/. Prev.</th>
+            <th data-sort="c_ej" class="num-cell">S/. Ejec.</th>
+            <th data-sort="saldo" class="num-cell">Saldo S/.</th>
+            <th data-sort="avance">Avance</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-partidas"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL 3: REGISTRO SEMANAL -->
+<div class="panel" id="panel-registro">
+  <div class="semana-selector">
+    <button class="semana-btn active" data-semana="1">📅 Semana 1</button>
+    <button class="semana-btn" data-semana="2">📅 Semana 2</button>
+    <button class="semana-btn" data-semana="3">📅 Semana 3</button>
+    <button class="semana-btn" data-semana="4">📅 Semana 4</button>
+  </div>
+
+  <div class="filters">
+    <input type="text" id="reg-search" placeholder="🔍 Filtrar partidas para registrar..." />
+    <select id="reg-filter-spec">
+      <option value="">Todas las especialidades</option>
+    </select>
+    <button class="btn btn-secondary" id="reg-only-mo">Solo con MO</button>
+  </div>
+
+  <div id="registro-lista"></div>
+
+  <div class="footer-actions">
+    <button class="btn btn-danger" id="btn-clear-week">🗑️ Limpiar semana</button>
+    <button class="btn btn-secondary" id="btn-export">💾 Exportar registros</button>
+  </div>
+</div>
+
+<!-- PANEL 4: ANÁLISIS -->
+<div class="panel" id="panel-analisis">
+  <div class="kpi-grid">
+    <div class="kpi-card eficiencia"><div class="kpi-label">Eficiencia HH</div><div class="kpi-value" id="kpi-eficiencia">—</div><div class="kpi-sub">Ejecutado / Previsto</div></div>
+    <div class="kpi-card avance"><div class="kpi-label">Partidas iniciadas</div><div class="kpi-value" id="kpi-iniciadas">—</div><div class="kpi-sub" id="kpi-iniciadas-sub">—</div></div>
+    <div class="kpi-card ejecutado"><div class="kpi-label">Partidas completadas</div><div class="kpi-value" id="kpi-completadas">—</div><div class="kpi-sub">≥ 95% avance</div></div>
+    <div class="kpi-card saldo"><div class="kpi-label">Sobreejecutadas</div><div class="kpi-value" id="kpi-sobre">—</div><div class="kpi-sub">> 110% del previsto</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">Previsto vs Ejecutado por Especialidad (S/.)</div>
+      <div class="chart-container tall"><canvas id="chart-comp-spec"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Distribución Horas por Categoría (Previsto vs Ejecutado)</div>
+      <div class="chart-container"><canvas id="chart-comp-cat"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="grid-column:1/-1">
+    <div class="chart-title">⚠️ Alertas y Recomendaciones</div>
+    <div id="alerts-list" class="alerts"></div>
+  </div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = {"tarifas": {"p": 29.19, "o": 10.08, "op": 14.33}, "partidas": [{"item": 1, "desc": "“REMODELACIÓN DE ESPACIO DE CIRCULACIÓN PEATONAL HORIZONTAL Y/O VERTICAL; ADQUISICIÓN DE MOVILIARIO URBANO; EL (LA) PASAJE BALCON CUSQUEÑO DEL  DISTRITO DE CUSCO, PROVINCIA DE CUSCO, DEPARTAMENTO DE CUSCO”", "is_group": true, "specialty": "Otros"}, {"item": 1.1, "desc": "OBRAS PROVISIONALES, TRABAJOS PRELIMINARES, SEGURIDAD Y SALUD", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1", "desc": "CONSTRUCCIONES PROVISIONALES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.1", "desc": "OBRAS PROVISIONALES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.1.1", "desc": "ALQUILER DE ALMACEN Y OFICINAS PARA LA OBRA", "unid": "mes", "cant": 4, "pu": 1500, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.1.2", "desc": "CERCO PROVISIONAL DE PROTECCION DE CALAMINA", "unid": "m", "cant": 30, "pu": 99.04, "rend_p": 1.0667, "rend_o": 0, "rend_op": 1.0667, "tar_p": 15.16, "tar_o": 0, "tar_op": 20.02, "h_prev_p": 32.0, "h_prev_o": 0, "h_prev_op": 32.0, "c_prev_p": 485.14, "c_prev_o": 0, "c_prev_op": 640.66, "c_prev_total": 1125.8, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.1.3", "desc": "SERVICIOS HIGIENICOS PORTATILES (1 S.H. EJECUTIVO  02S.H. ESTANDARES)", "unid": "mes", "cant": 4, "pu": 1260, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.1.4", "desc": "CARTEL DE OBRA 3.60 X 2.40 M (MADERA)", "unid": "und", "cant": 1, "pu": 1056.87, "rend_p": 16, "rend_o": 0, "rend_op": 4, "tar_p": 227.36, "tar_o": 0, "tar_op": 75.08, "h_prev_p": 16, "h_prev_o": 0, "h_prev_op": 4, "c_prev_p": 3637.76, "c_prev_o": 0, "c_prev_op": 300.32, "c_prev_total": 3938.08, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.2", "desc": "INSTALACIONES PROVISIONALES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.2.1", "desc": "AGUA PARA LA CONSTRUCCION", "unid": "und", "cant": 4, "pu": 325, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.2.2", "desc": "DESAGUE PARA LA CONSTRUCCION", "unid": "und", "cant": 4, "pu": 430.72, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.2.3", "desc": "ENERGIA ELECTRICA PARA LA CONSTRUCCION", "unid": "und", "cant": 4, "pu": 286.85, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.3", "desc": "TRABAJOS PRELIMINARES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.3.1", "desc": "LIMPIEZA DE TERRENO MANUAL", "unid": "m²", "cant": 567.28, "pu": 1.46, "rend_p": 0.1, "rend_o": 0, "rend_op": 0, "tar_p": 1.42, "tar_o": 0, "tar_op": 0, "h_prev_p": 56.73, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 80.55, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 80.55, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.3.2", "desc": "ELIMINACIÓN DE BASURA Y ELEMENTOS SUELTOS LIVIANOS ", "unid": "m³", "cant": 41.54, "pu": 2.93, "rend_p": 0.2, "rend_o": 0, "rend_op": 0, "tar_p": 2.84, "tar_o": 0, "tar_op": 0, "h_prev_p": 8.31, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 23.59, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 23.59, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.3.3", "desc": "ELIMINACION DE BASURA Y ELEMENTOS SUELTOS PESADOS", "unid": "m³", "cant": 2.5, "pu": 251.46, "rend_p": 0.1, "rend_o": 0, "rend_op": 0, "tar_p": 1.42, "tar_o": 0, "tar_op": 0, "h_prev_p": 0.25, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0.35, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0.35, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.4", "desc": "ELIMINACIÓN DE OBSTRUCCIONES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.4.1", "desc": "ELIMINACIÓN DE VEGETACIÓN", "unid": "m²", "cant": 15.6, "pu": 9.71, "rend_p": 0.4, "rend_o": 0, "rend_op": 0.2, "tar_p": 5.68, "tar_o": 0, "tar_op": 3.75, "h_prev_p": 6.24, "h_prev_o": 0, "h_prev_op": 3.12, "c_prev_p": 35.44, "c_prev_o": 0, "c_prev_op": 11.7, "c_prev_total": 47.14, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.5", "desc": "REMOCIONES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.5.1", "desc": "DESMONTAJE DE PUERTAS METALICAS (REJAS METALICAS)", "unid": "und", "cant": 2, "pu": 77.88, "rend_p": 4, "rend_o": 0, "rend_op": 1, "tar_p": 56.84, "tar_o": 0, "tar_op": 18.77, "h_prev_p": 8, "h_prev_o": 0, "h_prev_op": 2, "c_prev_p": 454.72, "c_prev_o": 0, "c_prev_op": 37.54, "c_prev_total": 492.26, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.5.2", "desc": "DESMONTAJE DE MOBILIARIO URBANO", "unid": "und", "cant": 2, "pu": 37.73, "rend_p": 1.6, "rend_o": 0.4, "rend_op": 0.4, "tar_p": 22.74, "tar_o": 6.38, "tar_op": 7.51, "h_prev_p": 3.2, "h_prev_o": 0.8, "h_prev_op": 0.8, "c_prev_p": 72.77, "c_prev_o": 5.1, "c_prev_op": 6.01, "c_prev_total": 83.88, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6", "desc": "DEMOLICIONES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6.1", "desc": "DEMOLICIÓN DE PARAPETO EXISTENTE MANUAL", "unid": "m³", "cant": 5.23, "pu": 7.96, "rend_p": 0.544, "rend_o": 0, "rend_op": 0, "tar_p": 7.73, "tar_o": 0, "tar_op": 0, "h_prev_p": 2.85, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 21.99, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 21.99, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6.2", "desc": "DEMOLICIÓN DE CONCRETO SIMPLE MANUAL R=0.6 M3/D", "unid": "m³", "cant": 3.3, "pu": 93.67, "rend_p": 6.4, "rend_o": 0, "rend_op": 0, "tar_p": 90.94, "tar_o": 0, "tar_op": 0, "h_prev_p": 21.12, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 1920.65, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 1920.65, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6.3", "desc": "PICADO DE CONCRETO PARA ANCLAJE DE DADOS", "unid": "m³", "cant": 3.33, "pu": 1.46, "rend_p": 0.1, "rend_o": 0, "rend_op": 0, "tar_p": 1.42, "tar_o": 0, "tar_op": 0, "h_prev_p": 0.33, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0.47, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0.47, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6.4", "desc": "RASQUETEO Y DEMANCHADO DE PARAPETO PARA TARRAJEAR", "unid": "m²", "cant": 45.23, "pu": 31.08, "rend_p": 1, "rend_o": 1, "rend_op": 0, "tar_p": 14.21, "tar_o": 15.96, "tar_op": 0, "h_prev_p": 45.23, "h_prev_o": 45.23, "h_prev_op": 0, "c_prev_p": 642.72, "c_prev_o": 721.87, "c_prev_op": 0, "c_prev_total": 1364.59, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.6.5", "desc": "DEMOLICIÓN PISO DE PIEDRA , MANUAL", "unid": "m²", "cant": 45.59, "pu": 29.27, "rend_p": 2, "rend_o": 0, "rend_op": 0, "tar_p": 28.42, "tar_o": 0, "tar_op": 0, "h_prev_p": 91.18, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2591.34, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2591.34, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.7", "desc": "TRAZOS , NIVELES Y REPLANTEO", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.7.1", "desc": "TRAZO Y REPLANTEO S/EQUIPO", "unid": "m²", "cant": 567.28, "pu": 1.49, "rend_p": 0.068, "rend_o": 0, "rend_op": 0.005, "tar_p": 0.97, "tar_o": 0, "tar_op": 0.09, "h_prev_p": 38.58, "h_prev_o": 0, "h_prev_op": 2.84, "c_prev_p": 37.42, "c_prev_o": 0, "c_prev_op": 0.26, "c_prev_total": 37.67, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.1.7.2", "desc": "TRAZO Y REPLANTEO C/EQUIPO", "unid": "m²", "cant": 567.28, "pu": 1.51, "rend_p": 0.04, "rend_o": 0, "rend_op": 0.02, "tar_p": 0.57, "tar_o": 0, "tar_op": 0.38, "h_prev_p": 22.69, "h_prev_o": 0, "h_prev_op": 11.35, "c_prev_p": 12.93, "c_prev_o": 0, "c_prev_op": 4.31, "c_prev_total": 17.25, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2", "desc": "SEGURIDAD Y SALUD EN EL TRABAJO", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2.1", "desc": "EQUIPOS DE PROTECCION INDIVIDUAL", "unid": "gbl", "cant": 1, "pu": 4716.95, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2.2", "desc": "EQUIPOS DE PROTECCION COLECTIVA", "unid": "glb", "cant": 1, "pu": 1567, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2.3", "desc": "SEÑALIZACIÓN TEMPORAL DE SEGURIDAD", "unid": "jgo", "cant": 1, "pu": 1295.36, "rend_p": 0, "rend_o": 8, "rend_op": 0, "tar_p": 0, "tar_o": 127.68, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 8, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 1021.44, "c_prev_op": 0, "c_prev_total": 1021.44, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2.4", "desc": "CAPACITACION EN SEGURIDAD Y SALUD", "unid": "glb", "cant": 1, "pu": 3660, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.2.5", "desc": "RECURSOS PARA RESPUESTAS ANTE EMERGENCIAS", "unid": "und", "cant": 1, "pu": 1459.56, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3", "desc": "PLAN DE MANEJO AMBIENTAL", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.1", "desc": "PROGRAMA DE MEDIDAS DE PREVENCIÓN, MITIGACION ", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.1.1", "desc": "RIEGO DURANTE EL PROCESO CONSTRUCTIVO", "unid": "m²", "cant": 250, "pu": 14.56, "rend_p": 0.8, "rend_o": 0, "rend_op": 0, "tar_p": 11.37, "tar_o": 0, "tar_op": 0, "h_prev_p": 200, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2274, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2274, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.1.2", "desc": "LIMPIEZA RUTINARIA DEL AREA DE INFLUENCIA DIRECTA", "unid": "m²", "cant": 250, "pu": 12.37, "rend_p": 0.8, "rend_o": 0, "rend_op": 0, "tar_p": 11.37, "tar_o": 0, "tar_op": 0, "h_prev_p": 200, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2274, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2274, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.1.3", "desc": "PROTECCIÓN DE MATERIAL SUELTO", "unid": "und", "cant": 1, "pu": 250, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.2", "desc": "PROGRAMA DE  MANEJO DE RESIDUOS SOLIDOS", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.2.1", "desc": "MANEJO DE RESIDUOS SOLIDOS NO PELIGROSOS", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.2.1.1", "desc": "IMPLEMENTACIÓN DE MATERIALES PARA RESIDUOS SOLIDOS EN OBRA", "unid": "und", "cant": 1, "pu": 2899.86, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.2.1.2", "desc": "GESTIÓN Y MANEJO DE RESIDUOS SOLIDOS", "unid": "glb", "cant": 2, "pu": 19.52, "rend_p": 1.3333, "rend_o": 0, "rend_op": 0, "tar_p": 18.95, "tar_o": 0, "tar_op": 0, "h_prev_p": 2.67, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 50.53, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 50.53, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.3", "desc": "PROGRAMA DE SEÑALIZACIÓN AMBIENTAL", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.3.1", "desc": "SEÑALIZACIÓN AMBIENTAL EN LAS ZONAS DE CONSTRUCCIÓN", "unid": "und", "cant": 3, "pu": 384.18, "rend_p": 16, "rend_o": 0, "rend_op": 0, "tar_p": 227.36, "tar_o": 0, "tar_op": 0, "h_prev_p": 48, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 10913.28, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 10913.28, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.4", "desc": "PLAN DE CONTINGENCIAS", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.4.1", "desc": "EQUIPAMIENTO", "unid": "und", "cant": 1, "pu": 850, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.5", "desc": "PLAN DE CIERRE Y ABANDONO", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.5.1", "desc": "DESMONTAJE DE OBRAS PROVISIONALES", "unid": "m²", "cant": 100, "pu": 18.74, "rend_p": 1.28, "rend_o": 0, "rend_op": 0, "tar_p": 18.19, "tar_o": 0, "tar_op": 0, "h_prev_p": 128, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2328.32, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2328.32, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.3.5.2", "desc": "LIMPIEZA FINAL DE OBRA", "unid": "m²", "cant": 200, "pu": 9.36, "rend_p": 0.64, "rend_o": 0, "rend_op": 0, "tar_p": 9.09, "tar_o": 0, "tar_op": 0, "h_prev_p": 128, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 1163.52, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 1163.52, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4", "desc": "PREVENCIÓN DE RIESGOS", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1", "desc": "PLAN DE MANEJO Y CONTROL DE RIESGOS EN DESASTRES", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1.1", "desc": "TALLER DE CAPACITACIÓN A LA POBLACIÓN DIRECTAMENTE BENEFICIARIA", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1.1.1", "desc": "TALLER DE CAPACITACIÓN SOBRE LA IDENTIFICACIÓN DE RIESGOS EN CENTROS EDUCATIVOS", "unid": "Serv.", "cant": 1, "pu": 4980, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1.2", "desc": "SEÑALIZACIÓN DE ZONA SEGURA", "is_group": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1.2.1", "desc": "SUMINISTRO Y COLOCACIÓN DE RUTAS DE EVACUACIÓN ", "unid": "und", "cant": 19, "pu": 18.27, "rend_p": 0, "rend_o": 0, "rend_op": 0.16, "tar_p": 0, "tar_o": 0, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 3.04, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 9.12, "c_prev_total": 9.12, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": "1.1.4.1.2.2", "desc": "PINTADO EN ZONA DE SEGURIDAD EN PISO CON PINTURA DE TRÁNSITO", "unid": "m²", "cant": 58.55, "pu": 78.39, "rend_p": 0, "rend_o": 0.4, "rend_op": 0.4, "tar_p": 0, "tar_o": 6.38, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 23.42, "h_prev_op": 23.42, "c_prev_p": 0, "c_prev_o": 149.42, "c_prev_op": 175.88, "c_prev_total": 325.3, "is_group": false, "has_mo": true, "specialty": "Obras Provisionales y Seguridad"}, {"item": 1.2, "desc": "ESTRUCTURAS", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.1", "desc": "MOVIMIENTO DE TIERRAS", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.1.1", "desc": "EXCAVACIÓN MANUAL", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.1.1.1", "desc": "EXCAVACIÓN PARA DADOS DE MAMPARA 0.25X0.30X0.50 M", "unid": "m³", "cant": 1.16, "pu": 39.03, "rend_p": 2.6667, "rend_o": 0, "rend_op": 0, "tar_p": 37.89, "tar_o": 0, "tar_op": 0, "h_prev_p": 3.09, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 117.21, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 117.21, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.1.2", "desc": "EXCAVACIÓN PARA DADOS DE MAMPARA 0.25X0.25X0.30 M", "unid": "m³", "cant": 0.26, "pu": 39.03, "rend_p": 2.6667, "rend_o": 0, "rend_op": 0, "tar_p": 37.89, "tar_o": 0, "tar_op": 0, "h_prev_p": 0.69, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 26.27, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 26.27, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.1.3", "desc": "EXCAVACIÓN PARA DADOS DE BASE EN PERGOLA ", "unid": "m³", "cant": 5.83, "pu": 39.03, "rend_p": 2.6667, "rend_o": 0, "rend_op": 0, "tar_p": 37.89, "tar_o": 0, "tar_op": 0, "h_prev_p": 15.55, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 589.07, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 589.07, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.1.4", "desc": "EXCAVACIÓN PARA DADOS EN BASE DE BASURERO", "unid": "m³", "cant": 0.08, "pu": 39.03, "rend_p": 2.6667, "rend_o": 0, "rend_op": 0, "tar_p": 37.89, "tar_o": 0, "tar_op": 0, "h_prev_p": 0.21, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 8.08, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 8.08, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.2", "desc": "ELIMINACIÓN DE MATERIAL EXCEDENTE", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.1.2.1", "desc": "ELIMINACIÓN DE MATERIAL EXCEDENTE MANUAL D=50M ( DISTANCIA PROMEDIO)", "unid": "m³", "cant": 55.25, "pu": 23.42, "rend_p": 1.6, "rend_o": 0, "rend_op": 0, "tar_p": 22.74, "tar_o": 0, "tar_op": 0, "h_prev_p": 88.4, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2010.22, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2010.22, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.2.2", "desc": "ACARREO DE MATERIAL EXCEDENTE EN CARRETILLA (50 M )", "unid": "m³", "cant": 55.25, "pu": 23.42, "rend_p": 1.6, "rend_o": 0, "rend_op": 0, "tar_p": 22.74, "tar_o": 0, "tar_op": 0, "h_prev_p": 88.4, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 2010.22, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 2010.22, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.1.2.3", "desc": "TRANSPORTE DE MATERIALES", "unid": "m³", "cant": 56.25, "pu": 20.16, "rend_p": 1, "rend_o": 0.2, "rend_op": 0, "tar_p": 14.21, "tar_o": 3.19, "tar_op": 0, "h_prev_p": 56.25, "h_prev_o": 11.25, "h_prev_op": 0, "c_prev_p": 799.31, "c_prev_o": 35.89, "c_prev_op": 0, "c_prev_total": 835.2, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2", "desc": "OBRAS DE CONCRETO SIMPLE", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.2.1", "desc": "DADOS DE CONCRETO", "is_group": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.1", "desc": "DADO DE CONCRETO 0.25X0.30X0.50 M P/ ENPOTRADO  F'C= 175KG/CM2  EN MAMPARA", "unid": "m³", "cant": 1.16, "pu": 320.07, "rend_p": 0.32, "rend_o": 0.0533, "rend_op": 0.0533, "tar_p": 4.55, "tar_o": 0.85, "tar_op": 1, "h_prev_p": 0.37, "h_prev_o": 0.06, "h_prev_op": 0.06, "c_prev_p": 1.69, "c_prev_o": 0.05, "c_prev_op": 0.06, "c_prev_total": 1.8, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.2", "desc": "ENCOFRADO Y DESENCOFRADO EN DADOS DE 0.25X0.30X0.50 M", "unid": "m²", "cant": 3.88, "pu": 58.83, "rend_p": 2.2857, "rend_o": 0.5714, "rend_op": 0, "tar_p": 32.48, "tar_o": 9.12, "tar_op": 0, "h_prev_p": 8.87, "h_prev_o": 2.22, "h_prev_op": 0, "c_prev_p": 288.05, "c_prev_o": 20.22, "c_prev_op": 0, "c_prev_total": 308.27, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.3", "desc": "DADO DE CONCRETO 0.25X0.25X0.30 M P/ ENPOTRADO  F'C= 175KG/CM2  EN MAMPARA", "unid": "m³", "cant": 0.26, "pu": 320.07, "rend_p": 0.32, "rend_o": 0.0533, "rend_op": 0.0533, "tar_p": 4.55, "tar_o": 0.85, "tar_op": 1, "h_prev_p": 0.08, "h_prev_o": 0.01, "h_prev_op": 0.01, "c_prev_p": 0.38, "c_prev_o": 0.01, "c_prev_op": 0.01, "c_prev_total": 0.4, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.4", "desc": "ENCOFRADO Y DESENCOFRADO EN DADOS DE 0.25X0.25X0.30 M", "unid": "m²", "cant": 1.05, "pu": 58.83, "rend_p": 2.2857, "rend_o": 0.5714, "rend_op": 0, "tar_p": 32.48, "tar_o": 9.12, "tar_op": 0, "h_prev_p": 2.4, "h_prev_o": 0.6, "h_prev_op": 0, "c_prev_p": 77.95, "c_prev_o": 5.47, "c_prev_op": 0, "c_prev_total": 83.42, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.5", "desc": "DADO DE CONCRETO 0.30X0.30X0.45M P/ ENPOTRADO  F'C= 175KG/CM2  EN PERGOLA", "unid": "m³", "cant": 0.97, "pu": 320.07, "rend_p": 0.32, "rend_o": 0.0533, "rend_op": 0.0533, "tar_p": 4.55, "tar_o": 0.85, "tar_op": 1, "h_prev_p": 0.31, "h_prev_o": 0.05, "h_prev_op": 0.05, "c_prev_p": 1.41, "c_prev_o": 0.04, "c_prev_op": 0.05, "c_prev_total": 1.51, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.6", "desc": "DADO DE CONCRETO 0.15X0.15X0.20M P/ ENPOTRADO  F'C= 175KG/CM2  EN BASUREROS", "unid": "m³", "cant": 0.03, "pu": 320.07, "rend_p": 0.32, "rend_o": 0.0533, "rend_op": 0.0533, "tar_p": 4.55, "tar_o": 0.85, "tar_op": 1, "h_prev_p": 0.01, "h_prev_o": 0.0, "h_prev_op": 0.0, "c_prev_p": 0.04, "c_prev_o": 0.0, "c_prev_op": 0.0, "c_prev_total": 0.05, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": "1.2.2.1.7", "desc": "CURADO DE CONCRETO", "unid": "m²", "cant": 1, "pu": 218.57, "rend_p": 0.1067, "rend_o": 0, "rend_op": 0, "tar_p": 1.52, "tar_o": 0, "tar_op": 0, "h_prev_p": 0.11, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0.16, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0.16, "is_group": false, "has_mo": true, "specialty": "Estructuras"}, {"item": 1.3, "desc": "ARQUITECTURA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1", "desc": "REVOQUES  Y  REVESTIMIENTOS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.1", "desc": "TARRAJEO RAYADO PRIMARIO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.1.1", "desc": "TARRAJEO PRIMARIO DE E = 5 cm, C:A 1:5", "unid": "m²", "cant": 5.76, "pu": 51.04, "rend_p": 1.6, "rend_o": 0, "rend_op": 0.8, "tar_p": 22.74, "tar_o": 0, "tar_op": 15.02, "h_prev_p": 9.22, "h_prev_o": 0, "h_prev_op": 4.61, "c_prev_p": 209.57, "c_prev_o": 0, "c_prev_op": 69.21, "c_prev_total": 278.78, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.1.2", "desc": "TARRAJEO EN EXTERIORES", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.2.1", "desc": "TARRAJEO EN MUROS EXTERIORES DE E=5CM, C:A 1:5", "unid": "m²", "cant": 56, "pu": 20.62, "rend_p": 0.2, "rend_o": 0, "rend_op": 0.4, "tar_p": 2.84, "tar_o": 0, "tar_op": 7.51, "h_prev_p": 11.2, "h_prev_o": 0, "h_prev_op": 22.4, "c_prev_p": 31.81, "c_prev_o": 0, "c_prev_op": 168.22, "c_prev_total": 200.03, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.1.3", "desc": "PREPARACIÓN DE GRADAS DE CONCRETO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.3.1", "desc": " PREPARACION DE GRADAS DE CONCRETO DE E = 5 cm, C:A 1:5", "unid": "m²", "cant": 73.03, "pu": 45.31, "rend_p": 0.8, "rend_o": 0, "rend_op": 0.8, "tar_p": 11.37, "tar_o": 0, "tar_op": 15.02, "h_prev_p": 58.42, "h_prev_o": 0, "h_prev_op": 58.42, "c_prev_p": 664.28, "c_prev_o": 0, "c_prev_op": 877.53, "c_prev_total": 1541.81, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.1.4", "desc": "GRADAS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.4.1", "desc": "REVESTIMIENTO CON  LAJA REGULAR DE PIEDRA COLOR GRIS CLARO DE  E= 4 cm", "unid": "m²", "cant": 73.03, "pu": 77.43, "rend_p": 1.3333, "rend_o": 0, "rend_op": 0.6667, "tar_p": 18.95, "tar_o": 0, "tar_op": 12.51, "h_prev_p": 97.37, "h_prev_o": 0, "h_prev_op": 48.69, "c_prev_p": 1845.18, "c_prev_o": 0, "c_prev_op": 609.1, "c_prev_total": 2454.28, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.1.5", "desc": "SOLAQUEO DE MUROS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.1.5.1", "desc": "SOLAQUEO EN PARAPETOS EXISTENTES", "unid": "m²", "cant": 171.97, "pu": 16.53, "rend_p": 0.4, "rend_o": 0, "rend_op": 0.2, "tar_p": 5.68, "tar_o": 0, "tar_op": 3.75, "h_prev_p": 68.79, "h_prev_o": 0, "h_prev_op": 34.39, "c_prev_p": 390.72, "c_prev_o": 0, "c_prev_op": 128.98, "c_prev_total": 519.69, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.1.5.2", "desc": "REVESTIMIENTO DE CERAMICOS CON IMPRESIÓN PERSONALIZADA", "unid": "m²", "cant": 5.76, "pu": 144.45, "rend_p": 0.5714, "rend_o": 0, "rend_op": 1.1429, "tar_p": 8.12, "tar_o": 0, "tar_op": 21.45, "h_prev_p": 3.29, "h_prev_o": 0, "h_prev_op": 6.58, "c_prev_p": 26.73, "c_prev_o": 0, "c_prev_op": 141.21, "c_prev_total": 167.93, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.2", "desc": "PISOS Y PAVIMENTOS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.1", "desc": "CONTRAPISO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.1.1", "desc": "CONTRAPISO DE E = 5 cm, C:A 1:5", "unid": "m²", "cant": 249.03, "pu": 35, "rend_p": 0.6, "rend_o": 0.1, "rend_op": 0.2, "tar_p": 8.53, "tar_o": 1.6, "tar_op": 3.75, "h_prev_p": 149.42, "h_prev_o": 24.9, "h_prev_op": 49.81, "c_prev_p": 1274.54, "c_prev_o": 39.84, "c_prev_op": 186.77, "c_prev_total": 1501.15, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2", "desc": "PISOS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.1", "desc": "CANTO RODADO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.1.1", "desc": "REPOSICIÓN DE PISOS DE CANTOS RODADOS", "unid": "m²", "cant": 64.1, "pu": 96.68, "rend_p": 3.3333, "rend_o": 0, "rend_op": 0.6667, "tar_p": 47.37, "tar_o": 0, "tar_op": 12.51, "h_prev_p": 213.66, "h_prev_o": 0, "h_prev_op": 42.74, "c_prev_p": 10121.29, "c_prev_o": 0, "c_prev_op": 534.62, "c_prev_total": 10655.91, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.2", "desc": "LAJA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.2.1", "desc": "REPOSICION DE PISO LAJA DE CORTE REGULAR DE PIEDRA COLOR GRIS CLARO DE  E= 4 cm", "unid": "m²", "cant": 184.93, "pu": 181.68, "rend_p": 3.3333, "rend_o": 0, "rend_op": 0.6667, "tar_p": 47.37, "tar_o": 0, "tar_op": 12.51, "h_prev_p": 616.43, "h_prev_o": 0, "h_prev_op": 123.29, "c_prev_p": 29200.15, "c_prev_o": 0, "c_prev_op": 1542.39, "c_prev_total": 30742.55, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.3", "desc": "SARDINELES", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.2.2.3.1", "desc": "SARDINEL DE PIEDRA DE REGULAR COLOR GRIS CLARO DE E=4\"", "unid": "und", "cant": 136.82, "pu": 182.06, "rend_p": 3.3333, "rend_o": 0, "rend_op": 0.6667, "tar_p": 47.37, "tar_o": 0, "tar_op": 12.51, "h_prev_p": 456.06, "h_prev_o": 0, "h_prev_op": 91.22, "c_prev_p": 21603.66, "c_prev_o": 0, "c_prev_op": 1141.14, "c_prev_total": 22744.8, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.3", "desc": "COBERTURAS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.3.1", "desc": "RECUBRIMIENTOS SOBRE ESTRUCTURA DE METAL", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.3.1.1", "desc": "POLICARBONATO SOLIDO DE E= 3mm", "unid": "m²", "cant": 29.76, "pu": 138.95, "rend_p": 0.8, "rend_o": 0.4, "rend_op": 0.4, "tar_p": 11.37, "tar_o": 6.38, "tar_op": 7.51, "h_prev_p": 23.81, "h_prev_o": 11.9, "h_prev_op": 11.9, "c_prev_p": 270.7, "c_prev_o": 75.95, "c_prev_op": 89.4, "c_prev_total": 436.04, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.4", "desc": "CARPINTERÍA METÁLICA Y HERRERÍA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.4.1", "desc": "PUERTAS DE FIERRO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.4.1.1", "desc": "PM-01, SEGÚN DISEÑO", "unid": "und", "cant": 1, "pu": 3727.21, "rend_p": 4, "rend_o": 0, "rend_op": 2, "tar_p": 56.84, "tar_o": 0, "tar_op": 37.54, "h_prev_p": 4, "h_prev_o": 0, "h_prev_op": 2, "c_prev_p": 227.36, "c_prev_o": 0, "c_prev_op": 75.08, "c_prev_total": 302.44, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.4.1.2", "desc": "PM-02, SEGÚN DISEÑO", "unid": "und", "cant": 1, "pu": 3727.21, "rend_p": 4, "rend_o": 0, "rend_op": 2, "tar_p": 56.84, "tar_o": 0, "tar_op": 37.54, "h_prev_p": 4, "h_prev_o": 0, "h_prev_op": 2, "c_prev_p": 227.36, "c_prev_o": 0, "c_prev_op": 75.08, "c_prev_total": 302.44, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.4.2", "desc": "MAMPARAS DE FIERRO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.4.2.1", "desc": "MAMPARA DE FIERRO TIPO 01, SEGÚN DISEÑO.", "unid": "m", "cant": 103.1, "pu": 500, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3", "desc": "ELEMENTOS METÁLICOS ESPECIALES", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.4.3.1", "desc": "PERGOLA METALICA DE 3.00 X 1.50 X 2.50, SEGÚN DISEÑO,  INC. INSTALACION ", "unid": "und", "cant": 6, "pu": 2700, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.2", "desc": "BANCA METALICA DE 2.40 m x 0.90 m x 0.80m , CON ASIENTO Y ESPALDAR DE LISTONES DE MADERA TRATADA,  SEGÚN DISEÑO. INC. INSTALACION", "unid": "und", "cant": 6, "pu": 1800, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.3", "desc": "BASUREROS METALICOS SEGUN DISEÑO, INC. INSTALACION", "unid": "und", "cant": 3, "pu": 600, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.4", "desc": "REJA DECORATIVA TIPO 01,  SEGÚN DISEÑO ", "unid": "und", "cant": 6, "pu": 650, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.5", "desc": "REJA DECORATIVA TIPO 02,  SEGÚN DISEÑO ", "unid": "und", "cant": 1, "pu": 650, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.6", "desc": "REJA DECORATIVA TIPO 03,  SEGÚN DISEÑO ", "unid": "m²", "cant": 8, "pu": 450, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.7", "desc": "SOPORTE METALICO PARA MASETERO DE FIERRO LISO, SEGÚN DISEÑO.", "unid": "und", "cant": 27, "pu": 12, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.8", "desc": "SOPORTE METALICO INDIVIDUAL DE BANNERS, SEGÚN DISEÑO.  ", "unid": "und", "cant": 2, "pu": 110, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.9", "desc": "SOPORTE METALICO DOBLE DE BANNERS, SEGÚN DISEÑO.  ", "unid": "und", "cant": 6, "pu": 90, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.10", "desc": "SOPORTE METALICO DE BANNER INFORMATIVO, SEGUN DISEÑO", "unid": "und", "cant": 1, "pu": 120, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.4.3.11", "desc": "REJILLA DE SUMIDERO METALICA", "unid": "und", "cant": 10, "pu": 228.73, "rend_p": 1.6, "rend_o": 1.6, "rend_op": 0, "tar_p": 22.74, "tar_o": 25.54, "tar_op": 0, "h_prev_p": 16, "h_prev_o": 16, "h_prev_op": 0, "c_prev_p": 363.84, "c_prev_o": 408.64, "c_prev_op": 0, "c_prev_total": 772.48, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.5", "desc": "CERRAJERIA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.5.1", "desc": "ACCESORIOS DE CIERRE", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.5.1.1", "desc": "CANDADO DE ACERO INOXIDABLE", "unid": "und", "cant": 2, "pu": 9.5, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.6", "desc": "VIDRIOS, CRISTALES Y SIMILARES", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.6.1", "desc": "VIDRIO TEMPLADO INCOLORO DE E=10mm, laminado con PVB de 08mm de espesor. Incluye accesorios e instalación", "unid": "m²", "cant": 165, "pu": 350, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.7", "desc": "PINTURA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.1", "desc": "PINTURA DE CIELOS RASOS, VIGAS, COLUMNAS Y PAREDES", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.1.1", "desc": "PINTURA LATEX EN MUROS EXTERIORES, 2 manos ", "unid": "m²", "cant": 749.93, "pu": 16.45, "rend_p": 0.1333, "rend_o": 0, "rend_op": 0.2667, "tar_p": 1.89, "tar_o": 0, "tar_op": 5.01, "h_prev_p": 99.97, "h_prev_o": 0, "h_prev_op": 200.01, "c_prev_p": 188.94, "c_prev_o": 0, "c_prev_op": 1002.03, "c_prev_total": 1190.97, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.2", "desc": "CARPINTERIA DE MADERA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.2.1", "desc": "PINTURA DE VENTANAS", "unid": "m²", "cant": 70.27, "pu": 28.08, "rend_p": 0.1333, "rend_o": 0, "rend_op": 0.2667, "tar_p": 1.89, "tar_o": 0, "tar_op": 5.01, "h_prev_p": 9.37, "h_prev_o": 0, "h_prev_op": 18.74, "c_prev_p": 17.7, "c_prev_o": 0, "c_prev_op": 93.89, "c_prev_total": 111.6, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3", "desc": "CARPINTERIA METALICA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.1", "desc": "PINTURA DE PUERTAS ", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.1.1", "desc": "PINTURA ANTICORROSIVA", "unid": "m²", "cant": 37.35, "pu": 48.98, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 4.98, "h_prev_op": 9.96, "c_prev_p": 0, "c_prev_o": 10.6, "c_prev_op": 49.91, "c_prev_total": 60.51, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.1.2", "desc": "PINTURA ESMALTE", "unid": "m²", "cant": 42.89, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 5.72, "h_prev_op": 11.44, "c_prev_p": 0, "c_prev_o": 12.18, "c_prev_op": 57.31, "c_prev_total": 69.49, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.2", "desc": "PINTURA DE MAMPARAS DE FIERRO", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.2.1", "desc": "PINTURA ANTICORROSIVA", "unid": "m²", "cant": 64.28, "pu": 54.3, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 12.86, "h_prev_op": 25.71, "c_prev_p": 0, "c_prev_o": 41.01, "c_prev_op": 193.1, "c_prev_total": 234.11, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.3.2.2", "desc": "PINTURA ESMALTE", "unid": "m²", "cant": 64.33, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 8.58, "h_prev_op": 17.16, "c_prev_p": 0, "c_prev_o": 18.27, "c_prev_op": 85.96, "c_prev_total": 104.22, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4", "desc": "PINTURA EN ESTRUCTURAS METALICAS", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1", "desc": "PINTURA ANTICORROSIVA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.1", "desc": "PERGOLA METALICA", "unid": "m²", "cant": 69, "pu": 48.98, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 9.2, "h_prev_op": 18.4, "c_prev_p": 0, "c_prev_o": 19.59, "c_prev_op": 92.2, "c_prev_total": 111.79, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.2", "desc": "BANCA METALICA ", "unid": "m²", "cant": 35, "pu": 48.98, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 4.67, "h_prev_op": 9.33, "c_prev_p": 0, "c_prev_o": 9.94, "c_prev_op": 46.77, "c_prev_total": 56.7, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.3", "desc": "BASUREROS METALICOS", "unid": "m²", "cant": 6, "pu": 48.98, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.8, "h_prev_op": 1.6, "c_prev_p": 0, "c_prev_o": 1.7, "c_prev_op": 8.02, "c_prev_total": 9.72, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.4", "desc": "PINTURA ANTICORROSIVA EN REJA DECORATIVA TIPO 01", "unid": "m²", "cant": 10.56, "pu": 54.3, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 2.11, "h_prev_op": 4.22, "c_prev_p": 0, "c_prev_o": 6.74, "c_prev_op": 31.72, "c_prev_total": 38.46, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.5", "desc": "PINTURA ANTICORROSIVA EN REJA DECORATIVA TIPO 02", "unid": "m²", "cant": 15.92, "pu": 54.3, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 3.18, "h_prev_op": 6.37, "c_prev_p": 0, "c_prev_o": 10.16, "c_prev_op": 47.82, "c_prev_total": 57.98, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.6", "desc": "PINTURA ANTICORROSIVA EN REJA DECORATIVA TIPO 03", "unid": "m²", "cant": 7.05, "pu": 54.3, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 1.41, "h_prev_op": 2.82, "c_prev_p": 0, "c_prev_o": 4.5, "c_prev_op": 21.18, "c_prev_total": 25.68, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.7", "desc": "PINTURA ANTICORROSIVA EN SOPORTE METALICO PARA MASETERO", "unid": "m²", "cant": 30.24, "pu": 44.56, "rend_p": 0, "rend_o": 0.08, "rend_op": 0.16, "tar_p": 0, "tar_o": 1.28, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 2.42, "h_prev_op": 4.84, "c_prev_p": 0, "c_prev_o": 3.1, "c_prev_op": 14.52, "c_prev_total": 17.61, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.8", "desc": "PINTURA ANTICORROSIVA EN SOPORTE INDIVIDUAL METALICO DE BANNERS", "unid": "m²", "cant": 0.23, "pu": 44.56, "rend_p": 0, "rend_o": 0.08, "rend_op": 0.16, "tar_p": 0, "tar_o": 1.28, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 0.02, "h_prev_op": 0.04, "c_prev_p": 0, "c_prev_o": 0.02, "c_prev_op": 0.11, "c_prev_total": 0.13, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.9", "desc": "PINTURA ANTICORROSIVA EN SOPORTE DOBLE METALICO DE BANNERS", "unid": "m²", "cant": 1.29, "pu": 44.56, "rend_p": 0, "rend_o": 0.08, "rend_op": 0.16, "tar_p": 0, "tar_o": 1.28, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 0.1, "h_prev_op": 0.21, "c_prev_p": 0, "c_prev_o": 0.13, "c_prev_op": 0.62, "c_prev_total": 0.75, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.10", "desc": "PINTURA ANTICORROSIVA DE POSTES METALICOS ORNAMENTALES", "unid": "m²", "cant": 100.8, "pu": 44.56, "rend_p": 0, "rend_o": 0.08, "rend_op": 0.16, "tar_p": 0, "tar_o": 1.28, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 8.06, "h_prev_op": 16.13, "c_prev_p": 0, "c_prev_o": 10.32, "c_prev_op": 48.38, "c_prev_total": 58.71, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.11", "desc": "PINTURA ANTICORROSIVA DE PASTORALES METALICOS ORNAMENTALES", "unid": "m²", "cant": 2.4, "pu": 54.15, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 0.48, "h_prev_op": 0.96, "c_prev_p": 0, "c_prev_o": 1.53, "c_prev_op": 7.21, "c_prev_total": 8.74, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.12", "desc": "PINTURA ANTICORROSIVA EN SOPORTE METALICO DE BANNER INFORMATIVO", "unid": "m²", "cant": 6.6, "pu": 44.56, "rend_p": 0, "rend_o": 0.08, "rend_op": 0.16, "tar_p": 0, "tar_o": 1.28, "tar_op": 3, "h_prev_p": 0, "h_prev_o": 0.53, "h_prev_op": 1.06, "c_prev_p": 0, "c_prev_o": 0.68, "c_prev_op": 3.17, "c_prev_total": 3.84, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.1.13", "desc": "PINTURA ANTICORROSIVA EN REJILLA DE SUMIDERO METALICA", "unid": "m²", "cant": 4.8, "pu": 54.15, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.4, "tar_p": 0, "tar_o": 3.19, "tar_op": 7.51, "h_prev_p": 0, "h_prev_o": 0.96, "h_prev_op": 1.92, "c_prev_p": 0, "c_prev_o": 3.06, "c_prev_op": 14.42, "c_prev_total": 17.48, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2", "desc": "PINTURA ESMALTE", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.1", "desc": "PERGOLA METALICA ", "unid": "m²", "cant": 63.38, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 8.45, "h_prev_op": 16.9, "c_prev_p": 0, "c_prev_o": 18.0, "c_prev_op": 84.69, "c_prev_total": 102.68, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.2", "desc": "BANCA METALICA ", "unid": "m²", "cant": 33.79, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 4.5, "h_prev_op": 9.01, "c_prev_p": 0, "c_prev_o": 9.59, "c_prev_op": 45.15, "c_prev_total": 54.74, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.3", "desc": "BASUREROS METALICOS", "unid": "m²", "cant": 5.73, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.76, "h_prev_op": 1.53, "c_prev_p": 0, "c_prev_o": 1.63, "c_prev_op": 7.66, "c_prev_total": 9.28, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.4", "desc": "PINTURA ESMALTE EN REJA DECORATIVA TIPO 01", "unid": "m²", "cant": 10.56, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 1.69, "h_prev_op": 3.38, "c_prev_p": 0, "c_prev_o": 4.31, "c_prev_op": 20.31, "c_prev_total": 24.62, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.5", "desc": "PINTURA ESMALTE EN REJA DECORATIVA TIPO 02", "unid": "m²", "cant": 2, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 0.32, "h_prev_op": 0.64, "c_prev_p": 0, "c_prev_o": 0.82, "c_prev_op": 3.85, "c_prev_total": 4.66, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.6", "desc": "PINTURA ESMALTE EN REJA DECORATIVA TIPO 03", "unid": "m²", "cant": 7.05, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 1.13, "h_prev_op": 2.26, "c_prev_p": 0, "c_prev_o": 2.88, "c_prev_op": 13.56, "c_prev_total": 16.43, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.7", "desc": "PINTURA ESMALTE EN SOPORTE METALICO PARA MASETERO", "unid": "m²", "cant": 30.24, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 4.84, "h_prev_op": 9.68, "c_prev_p": 0, "c_prev_o": 12.34, "c_prev_op": 58.16, "c_prev_total": 70.5, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.8", "desc": "PINTURA ESMALTE EN SOPORTE INDIVIDUAL METALICO DE BANNERS", "unid": "m²", "cant": 0.23, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 0.04, "h_prev_op": 0.07, "c_prev_p": 0, "c_prev_o": 0.09, "c_prev_op": 0.44, "c_prev_total": 0.54, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.9", "desc": "PINTURA ESMALTE EN SOPORTE DOBLE METALICO DE BANNERS", "unid": "m²", "cant": 1.29, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 0.21, "h_prev_op": 0.41, "c_prev_p": 0, "c_prev_o": 0.53, "c_prev_op": 2.48, "c_prev_total": 3.01, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.10", "desc": "PINTURA ESMALTE DE POSTES METALICOS EXISTENTES", "unid": "m²", "cant": 100.8, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 16.13, "h_prev_op": 32.26, "c_prev_p": 0, "c_prev_o": 41.13, "c_prev_op": 193.86, "c_prev_total": 234.98, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.11", "desc": "PINTURA ESMALTE DE PASTORALES METALICOS ORNAMENTALES", "unid": "m²", "cant": 2.4, "pu": 41.42, "rend_p": 0, "rend_o": 0.16, "rend_op": 0.32, "tar_p": 0, "tar_o": 2.55, "tar_op": 6.01, "h_prev_p": 0, "h_prev_o": 0.38, "h_prev_op": 0.77, "c_prev_p": 0, "c_prev_o": 0.98, "c_prev_op": 4.62, "c_prev_total": 5.59, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.12", "desc": "PINTURA ESMALTE EN SOPORTE METALICO DE BANNER INFORMATIVO", "unid": "m²", "cant": 6.6, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.88, "h_prev_op": 1.76, "c_prev_p": 0, "c_prev_o": 1.87, "c_prev_op": 8.82, "c_prev_total": 10.69, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.7.4.2.13", "desc": "PINTURA ESMALTE EN REJILLA DE SUMIDERO METALICA", "unid": "m²", "cant": 4.8, "pu": 39.29, "rend_p": 0, "rend_o": 0.1333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 2.13, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.64, "h_prev_op": 1.28, "c_prev_p": 0, "c_prev_o": 1.36, "c_prev_op": 6.41, "c_prev_total": 7.78, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.8", "desc": "VARIOS, LIMPIEZA Y JARDINERIA", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.8.1", "desc": "TRABAJOS DE JARDINERÍA", "unid": "und", "cant": 27, "pu": 15.75, "rend_p": 0.0533, "rend_o": 0.0533, "rend_op": 0, "tar_p": 0.76, "tar_o": 0.85, "tar_op": 0, "h_prev_p": 1.44, "h_prev_o": 1.44, "h_prev_op": 0, "c_prev_p": 1.09, "c_prev_o": 1.22, "c_prev_op": 0, "c_prev_total": 2.32, "is_group": false, "has_mo": true, "specialty": "Arquitectura"}, {"item": "1.3.9", "desc": "OTROS ", "is_group": true, "specialty": "Arquitectura"}, {"item": "1.3.9.1", "desc": "MASETEROS DE PLASTICO DE 5 LTS ", "unid": "und", "cant": 27, "pu": 20, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.9.2", "desc": "PLANTONES FLORES NATIVAS ", "unid": "und", "cant": 27, "pu": 15, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.9.3", "desc": "BANNERS PARA SOPORTES EN POSTES SEGÚN DISEÑO.", "unid": "und", "cant": 14, "pu": 25, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": "1.3.9.4", "desc": "BANNERS PARA PANEL INFORMATIVO SEGÚN DISEÑO.", "unid": "und", "cant": 1, "pu": 25, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Arquitectura"}, {"item": 1.4, "desc": "INSTALACIONES SANITARIAS", "is_group": true, "specialty": "Instalaciones Sanitarias"}, {"item": "1.4.1", "desc": "LIMPIEZA DE CANAL PLUVIAL", "is_group": true, "specialty": "Instalaciones Sanitarias"}, {"item": "1.4.1.1", "desc": "LIMPIEZA DE CANAL PLUVIAL EXISTENTE", "unid": "m", "cant": 8.84, "pu": 85.88, "rend_p": 1.0667, "rend_o": 0, "rend_op": 0.5333, "tar_p": 15.16, "tar_o": 0, "tar_op": 10.01, "h_prev_p": 9.43, "h_prev_o": 0, "h_prev_op": 4.71, "c_prev_p": 142.95, "c_prev_o": 0, "c_prev_op": 47.19, "c_prev_total": 190.14, "is_group": false, "has_mo": true, "specialty": "Instalaciones Sanitarias"}, {"item": 1.5, "desc": "INSTALACIONES ELÉCTRICAS Y MECÁNICAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.1", "desc": "CONEXIÓN A LA RED EXTERNA DE MEDIDORES", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.1.1", "desc": "TRAMITE E INSTALACIÓN DE SUMINISTRO MONOFÁSICO (1Ø)", "unid": "und", "cant": 1, "pu": 850, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2", "desc": "SALIDA PARA ALUMBRADO, TOMACORRRIENTE, FUERZA Y SEÑALES DÉBILES", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1", "desc": "SALIDA", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.1", "desc": "SALIDA PARA ALUMBRADO EN POSTE ORNAMENTAL", "unid": "und", "cant": 8, "pu": 347.08, "rend_p": 4, "rend_o": 0.6, "rend_op": 2, "tar_p": 56.84, "tar_o": 9.58, "tar_op": 37.54, "h_prev_p": 32, "h_prev_o": 4.8, "h_prev_op": 16, "c_prev_p": 1818.88, "c_prev_o": 45.98, "c_prev_op": 600.64, "c_prev_total": 2465.5, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.2", "desc": "SALIDA PARA ALUMBRADO EN PASTORAL ORNAMENTAL", "unid": "und", "cant": 3, "pu": 231.38, "rend_p": 2.6667, "rend_o": 0.4, "rend_op": 1.3333, "tar_p": 37.89, "tar_o": 6.38, "tar_op": 25.03, "h_prev_p": 8.0, "h_prev_o": 1.2, "h_prev_op": 4.0, "c_prev_p": 303.12, "c_prev_o": 7.66, "c_prev_op": 100.12, "c_prev_total": 410.9, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.3", "desc": "SALIDA PARA CAJA PORTAMEDIDOR MONOFÁSICO  (1Ø)", "unid": "und", "cant": 2, "pu": 185.65, "rend_p": 3.2, "rend_o": 0.48, "rend_op": 1.6, "tar_p": 45.47, "tar_o": 7.66, "tar_op": 30.03, "h_prev_p": 6.4, "h_prev_o": 0.96, "h_prev_op": 3.2, "c_prev_p": 291.01, "c_prev_o": 7.35, "c_prev_op": 96.1, "c_prev_total": 394.46, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.4", "desc": "SALIDA PARA MEDIDOR ELECTRONICO MONOFÁSICO (1Ø)", "unid": "und", "cant": 2, "pu": 335.65, "rend_p": 3.2, "rend_o": 0.48, "rend_op": 1.6, "tar_p": 45.47, "tar_o": 7.66, "tar_op": 30.03, "h_prev_p": 6.4, "h_prev_o": 0.96, "h_prev_op": 3.2, "c_prev_p": 291.01, "c_prev_o": 7.35, "c_prev_op": 96.1, "c_prev_total": 394.46, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.5", "desc": "SALIDA PARA GABINETE DE COMUNICACIÓN (CCTV)", "unid": "und", "cant": 1, "pu": 277.65, "rend_p": 3.2, "rend_o": 0.48, "rend_op": 1.6, "tar_p": 45.47, "tar_o": 7.66, "tar_op": 30.03, "h_prev_p": 3.2, "h_prev_o": 0.48, "h_prev_op": 1.6, "c_prev_p": 145.5, "c_prev_o": 3.68, "c_prev_op": 48.05, "c_prev_total": 197.23, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.1.6", "desc": "SALIDA PARA TOMACORRIENTE INDUSTRIAL P/EMPOTRAR 2P+ LT,16A, 250V", "unid": "und", "cant": 2, "pu": 156.38, "rend_p": 2.6667, "rend_o": 0.4, "rend_op": 1.3333, "tar_p": 37.89, "tar_o": 6.38, "tar_op": 25.03, "h_prev_p": 5.33, "h_prev_o": 0.8, "h_prev_op": 2.67, "c_prev_p": 202.08, "c_prev_o": 5.1, "c_prev_op": 66.74, "c_prev_total": 273.93, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2", "desc": "CANALIZACIONES, CONDUCTOS O TUBERIAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.1", "desc": "TUBERIA PVC-CP DE 20mm Ø - ALUMBRADO FAROLAS (PASTORAL EN PARED)", "unid": "m", "cant": 36, "pu": 9.57, "rend_p": 0.0889, "rend_o": 0.0133, "rend_op": 0.0444, "tar_p": 1.26, "tar_o": 0.21, "tar_op": 0.83, "h_prev_p": 3.2, "h_prev_o": 0.48, "h_prev_op": 1.6, "c_prev_p": 4.03, "c_prev_o": 0.1, "c_prev_op": 1.33, "c_prev_total": 5.46, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.2", "desc": "TUBERIA PVC-CP DE 35mm Ø - ALUMBRADO FAROLAS (POSTE ORNAMENTAL)", "unid": "m", "cant": 150, "pu": 12.95, "rend_p": 0.1143, "rend_o": 0.0171, "rend_op": 0.0571, "tar_p": 1.62, "tar_o": 0.27, "tar_op": 1.07, "h_prev_p": 17.14, "h_prev_o": 2.56, "h_prev_op": 8.56, "c_prev_p": 27.77, "c_prev_o": 0.69, "c_prev_op": 9.16, "c_prev_total": 37.63, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.3", "desc": "TUBERIA PVC-CP DE 35mm Ø - MEDIDOR PARTICULAR Y CCTV", "unid": "m", "cant": 100, "pu": 12.95, "rend_p": 0.1143, "rend_o": 0.0171, "rend_op": 0.0571, "tar_p": 1.62, "tar_o": 0.27, "tar_op": 1.07, "h_prev_p": 11.43, "h_prev_o": 1.71, "h_prev_op": 5.71, "c_prev_p": 18.52, "c_prev_o": 0.46, "c_prev_op": 6.11, "c_prev_total": 25.09, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.4", "desc": "TUBERIA PVC-CP DE 1000mm Ø - RED DE BT", "unid": "m", "cant": 120, "pu": 32.26, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 24, "h_prev_o": 3.6, "h_prev_op": 12, "c_prev_p": 68.16, "c_prev_o": 1.73, "c_prev_op": 22.56, "c_prev_total": 92.45, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.5", "desc": "CURVA PVC-CP DE 20mm Ø", "unid": "und", "cant": 6, "pu": 10.53, "rend_p": 0.2286, "rend_o": 0.0343, "rend_op": 0.1143, "tar_p": 3.25, "tar_o": 0.55, "tar_op": 2.15, "h_prev_p": 1.37, "h_prev_o": 0.21, "h_prev_op": 0.69, "c_prev_p": 4.46, "c_prev_o": 0.11, "c_prev_op": 1.47, "c_prev_total": 6.05, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.6", "desc": "CURVA PVC-CP DE 35mm Ø", "unid": "und", "cant": 4, "pu": 15.66, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 2.27, "c_prev_o": 0.06, "c_prev_op": 0.75, "c_prev_total": 3.08, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.7", "desc": "CURVA PVC-CP DE 100mm Ø", "unid": "und", "cant": 3, "pu": 39.54, "rend_p": 0.2667, "rend_o": 0.04, "rend_op": 0.1333, "tar_p": 3.79, "tar_o": 0.64, "tar_op": 2.5, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 3.03, "c_prev_o": 0.08, "c_prev_op": 1.0, "c_prev_total": 4.11, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.8", "desc": "UNIÓN PVC-CP DE 20mm Ø", "unid": "und", "cant": 8, "pu": 8.76, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 1.6, "h_prev_o": 0.24, "h_prev_op": 0.8, "c_prev_p": 4.54, "c_prev_o": 0.12, "c_prev_op": 1.5, "c_prev_total": 6.16, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.9", "desc": "UNIÓN PVC-CP DE 35mm Ø", "unid": "und", "cant": 4, "pu": 10.86, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 2.27, "c_prev_o": 0.06, "c_prev_op": 0.75, "c_prev_total": 3.08, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.10", "desc": "UNIÓN PVC-CP DE 100mm Ø", "unid": "und", "cant": 3, "pu": 20.77, "rend_p": 0.2667, "rend_o": 0.04, "rend_op": 0.1333, "tar_p": 3.79, "tar_o": 0.64, "tar_op": 2.5, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 3.03, "c_prev_o": 0.08, "c_prev_op": 1.0, "c_prev_total": 4.11, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.11", "desc": "CONECTOR PVC-CP DE 20mm Ø", "unid": "und", "cant": 8, "pu": 8.56, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 1.6, "h_prev_o": 0.24, "h_prev_op": 0.8, "c_prev_p": 4.54, "c_prev_o": 0.12, "c_prev_op": 1.5, "c_prev_total": 6.16, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.12", "desc": "CONECTOR PVC-CP DE 35mm Ø", "unid": "und", "cant": 4, "pu": 12.26, "rend_p": 0.2, "rend_o": 0.03, "rend_op": 0.1, "tar_p": 2.84, "tar_o": 0.48, "tar_op": 1.88, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 2.27, "c_prev_o": 0.06, "c_prev_op": 0.75, "c_prev_total": 3.08, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.2.13", "desc": "CONECTOR PVC-CP DE 100mm Ø", "unid": "und", "cant": 3, "pu": 22.04, "rend_p": 0.2667, "rend_o": 0.04, "rend_op": 0.1333, "tar_p": 3.79, "tar_o": 0.64, "tar_op": 2.5, "h_prev_p": 0.8, "h_prev_o": 0.12, "h_prev_op": 0.4, "c_prev_p": 3.03, "c_prev_o": 0.08, "c_prev_op": 1.0, "c_prev_total": 4.11, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3", "desc": "CONDUCTORES Y CABLES DE ENERGÍA EN TUBERIAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3.1", "desc": "CABLE TIPO N2XOH DE 10 mm2 (UNIPOLAR) - ALIMENTADOR TD Y GABINETE CCTV", "unid": "m", "cant": 282, "pu": 8.1, "rend_p": 0.08, "rend_o": 0.012, "rend_op": 0.04, "tar_p": 1.14, "tar_o": 0.19, "tar_op": 0.75, "h_prev_p": 22.56, "h_prev_o": 3.38, "h_prev_op": 11.28, "c_prev_p": 25.72, "c_prev_o": 0.64, "c_prev_op": 8.46, "c_prev_total": 34.82, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3.2", "desc": "CABLE TIPO N2XOH DE 16mm2 (UNIPOLAR) - ALIMENTADOR", "unid": "m", "cant": 30, "pu": 8.22, "rend_p": 0.0842, "rend_o": 0.0126, "rend_op": 0.0421, "tar_p": 1.2, "tar_o": 0.2, "tar_op": 0.79, "h_prev_p": 2.53, "h_prev_o": 0.38, "h_prev_op": 1.26, "c_prev_p": 3.03, "c_prev_o": 0.08, "c_prev_op": 1.0, "c_prev_total": 4.1, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3.3", "desc": "CABLE TIPO N2XOH DE 16mm2 (UNIPOLAR) - TIERRA", "unid": "m", "cant": 225, "pu": 8.22, "rend_p": 0.0842, "rend_o": 0.0126, "rend_op": 0.0421, "tar_p": 1.2, "tar_o": 0.2, "tar_op": 0.79, "h_prev_p": 18.95, "h_prev_o": 2.83, "h_prev_op": 9.47, "c_prev_p": 22.73, "c_prev_o": 0.57, "c_prev_op": 7.48, "c_prev_total": 30.78, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3.4", "desc": "CABLE TIPO N2XOH DE 25mm2 (UNIPOLAR) - ALUMBRADO FAROLAS", "unid": "m", "cant": 450, "pu": 22.18, "rend_p": 0.1, "rend_o": 0.015, "rend_op": 0.05, "tar_p": 1.42, "tar_o": 0.24, "tar_op": 0.94, "h_prev_p": 45, "h_prev_o": 6.75, "h_prev_op": 22.5, "c_prev_p": 63.9, "c_prev_o": 1.62, "c_prev_op": 21.15, "c_prev_total": 86.67, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.3.5", "desc": "CABLE TIPO NLT  DE 3x12 AWG (4mm2) - ALUMBRADO FAROLAS", "unid": "m", "cant": 110, "pu": 8.21, "rend_p": 0.064, "rend_o": 0.0096, "rend_op": 0.032, "tar_p": 0.91, "tar_o": 0.15, "tar_op": 0.6, "h_prev_p": 7.04, "h_prev_o": 1.06, "h_prev_op": 3.52, "c_prev_p": 6.41, "c_prev_o": 0.16, "c_prev_op": 2.11, "c_prev_total": 8.68, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.4", "desc": "BUZONES O CÁMARAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.4.1", "desc": "BUZÓN DE CONCRETO DE 0.40x0.40x0.60m", "unid": "und", "cant": 24, "pu": 251.38, "rend_p": 2.6667, "rend_o": 0.4, "rend_op": 1.3333, "tar_p": 37.89, "tar_o": 6.38, "tar_op": 25.03, "h_prev_p": 64.0, "h_prev_o": 9.6, "h_prev_op": 32.0, "c_prev_p": 2424.99, "c_prev_o": 61.25, "c_prev_op": 800.94, "c_prev_total": 3287.18, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5", "desc": "ZANJAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.1", "desc": "EXCAVACIÓN DE HOYO P/BUZÓN DE 0.40x0.40x0.60m ", "unid": "m³", "cant": 2.3, "pu": 39.07, "rend_p": 2.4, "rend_o": 0.24, "rend_op": 0, "tar_p": 34.1, "tar_o": 3.83, "tar_op": 0, "h_prev_p": 5.52, "h_prev_o": 0.55, "h_prev_op": 0, "c_prev_p": 188.23, "c_prev_o": 2.11, "c_prev_op": 0, "c_prev_total": 190.35, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.2", "desc": "EXCAVACIÓN DE ZANJA DE 0.40m DE ANCHO x 0.60m DE PROF.", "unid": "m³", "cant": 31.2, "pu": 39.07, "rend_p": 2.4, "rend_o": 0.24, "rend_op": 0, "tar_p": 34.1, "tar_o": 3.83, "tar_op": 0, "h_prev_p": 74.88, "h_prev_o": 7.49, "h_prev_op": 0, "c_prev_p": 2553.41, "c_prev_o": 28.68, "c_prev_op": 0, "c_prev_total": 2582.09, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.3", "desc": "REFINE Y NIVELACIÓN DE ZANJA DE 0.40 DE ANCHO x 0.60m DE PROF.", "unid": "m³", "cant": 28.8, "pu": 26.05, "rend_p": 1.6, "rend_o": 0.16, "rend_op": 0, "tar_p": 22.74, "tar_o": 2.55, "tar_op": 0, "h_prev_p": 46.08, "h_prev_o": 4.61, "h_prev_op": 0, "c_prev_p": 1047.86, "c_prev_o": 11.75, "c_prev_op": 0, "c_prev_total": 1059.61, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.4", "desc": "COLOCACIÓN DE CAMA DE ARENA PARA CONDUCTOR SUBTERRANEO", "unid": "m³", "cant": 4.8, "pu": 176.05, "rend_p": 1.6, "rend_o": 0.16, "rend_op": 0, "tar_p": 22.74, "tar_o": 2.55, "tar_op": 0, "h_prev_p": 7.68, "h_prev_o": 0.77, "h_prev_op": 0, "c_prev_p": 174.64, "c_prev_o": 1.96, "c_prev_op": 0, "c_prev_total": 176.6, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.5", "desc": "COLOCACIÓN DE CINTA SEÑALIZADORA", "unid": "m", "cant": 120, "pu": 1.56, "rend_p": 0.08, "rend_o": 0.008, "rend_op": 0, "tar_p": 1.14, "tar_o": 0.13, "tar_op": 0, "h_prev_p": 9.6, "h_prev_o": 0.96, "h_prev_op": 0, "c_prev_p": 10.94, "c_prev_o": 0.12, "c_prev_op": 0, "c_prev_total": 11.07, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.6", "desc": "COLOCACIÓN DE LADRILLO DE PROTECCIÓN", "unid": "und", "cant": 500, "pu": 2.96, "rend_p": 0.1333, "rend_o": 0.0133, "rend_op": 0, "tar_p": 1.89, "tar_o": 0.21, "tar_op": 0, "h_prev_p": 66.65, "h_prev_o": 6.65, "h_prev_op": 0, "c_prev_p": 125.97, "c_prev_o": 1.4, "c_prev_op": 0, "c_prev_total": 127.36, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.7", "desc": "RELLENO Y COMPACTACIÓN", "unid": "m²", "cant": 36, "pu": 3.25, "rend_p": 0.2, "rend_o": 0.02, "rend_op": 0, "tar_p": 2.84, "tar_o": 0.32, "tar_op": 0, "h_prev_p": 7.2, "h_prev_o": 0.72, "h_prev_op": 0, "c_prev_p": 20.45, "c_prev_o": 0.23, "c_prev_op": 0, "c_prev_total": 20.68, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.5.8", "desc": "ELIMINACIÓN DE MATERIAL EXCEDENTE", "unid": "m³", "cant": 14.4, "pu": 42.89, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.6", "desc": "TABLEROS DE DISTRIBUCIÓN ", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.6.1", "desc": "TABLERO DE DISTRIBUCIÓN TC-AP (24 POLOS) - TIPO RIEL DIN ", "unid": "und", "cant": 1, "pu": 723.27, "rend_p": 8, "rend_o": 8, "rend_op": 8, "tar_p": 113.68, "tar_o": 127.68, "tar_op": 150.16, "h_prev_p": 8, "h_prev_o": 8, "h_prev_op": 8, "c_prev_p": 909.44, "c_prev_o": 1021.44, "c_prev_op": 1201.28, "c_prev_total": 3132.16, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.6.2", "desc": "TABLERO DE DISTRIBUCIÓN TD-PV 01 (18 POLOS) - TIPO RIEL DIN ", "unid": "und", "cant": 1, "pu": 683.27, "rend_p": 8, "rend_o": 8, "rend_op": 8, "tar_p": 113.68, "tar_o": 127.68, "tar_op": 150.16, "h_prev_p": 8, "h_prev_o": 8, "h_prev_op": 8, "c_prev_p": 909.44, "c_prev_o": 1021.44, "c_prev_op": 1201.28, "c_prev_total": 3132.16, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.6.3", "desc": "TABLERO DE DISTRIBUCIÓN TD-PV 02 (18 POLOS) - TIPO RIEL DIN", "unid": "und", "cant": 1, "pu": 683.27, "rend_p": 8, "rend_o": 8, "rend_op": 8, "tar_p": 113.68, "tar_o": 127.68, "tar_op": 150.16, "h_prev_p": 8, "h_prev_o": 8, "h_prev_op": 8, "c_prev_p": 909.44, "c_prev_o": 1021.44, "c_prev_op": 1201.28, "c_prev_total": 3132.16, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7", "desc": "DISPOSITIVOS DE MANIOBRA Y PROTECCIÓN", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1", "desc": "DISPOSITIVOS BIPOLARES", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.1", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x16A, 220V", "unid": "und", "cant": 2, "pu": 18.06, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 1.07, "h_prev_op": 0.53, "c_prev_p": 0, "c_prev_o": 9.08, "c_prev_op": 2.67, "c_prev_total": 11.75, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.2", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x20A, 220V", "unid": "und", "cant": 3, "pu": 68.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 1.6, "h_prev_op": 0.8, "c_prev_p": 0, "c_prev_o": 13.62, "c_prev_op": 4.01, "c_prev_total": 17.62, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.3", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x25A, 220V", "unid": "und", "cant": 1, "pu": 68.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.53, "h_prev_op": 0.27, "c_prev_p": 0, "c_prev_o": 4.54, "c_prev_op": 1.34, "c_prev_total": 5.87, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.4", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x32A, 220V", "unid": "und", "cant": 3, "pu": 68.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 1.6, "h_prev_op": 0.8, "c_prev_p": 0, "c_prev_o": 13.62, "c_prev_op": 4.01, "c_prev_total": 17.62, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.5", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x40A, 220V", "unid": "und", "cant": 3, "pu": 78.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 1.6, "h_prev_op": 0.8, "c_prev_p": 0, "c_prev_o": 13.62, "c_prev_op": 4.01, "c_prev_total": 17.62, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.6", "desc": "INTERRUPTOR TERMOMAGNÉTICO DE 2x50A, 220V", "unid": "und", "cant": 1, "pu": 93.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 0.53, "h_prev_op": 0.27, "c_prev_p": 0, "c_prev_o": 4.54, "c_prev_op": 1.34, "c_prev_total": 5.87, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.7", "desc": "INTERRUPTOR DIFERENCIAL DE 2X25A, 30mA", "unid": "und", "cant": 6, "pu": 223.93, "rend_p": 0, "rend_o": 0.5333, "rend_op": 0.2667, "tar_p": 0, "tar_o": 8.51, "tar_op": 5.01, "h_prev_p": 0, "h_prev_o": 3.2, "h_prev_op": 1.6, "c_prev_p": 0, "c_prev_o": 27.23, "c_prev_op": 8.02, "c_prev_total": 35.25, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.8", "desc": "INTERRUPTOR HORARIO (ANALÓGICO)", "unid": "und", "cant": 1, "pu": 167.41, "rend_p": 0, "rend_o": 0.6667, "rend_op": 0.3333, "tar_p": 0, "tar_o": 10.64, "tar_op": 6.26, "h_prev_p": 0, "h_prev_o": 0.67, "h_prev_op": 0.33, "c_prev_p": 0, "c_prev_o": 7.09, "c_prev_op": 2.09, "c_prev_total": 9.18, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.2.7.1.9", "desc": "CONTACTOR DE 15A", "unid": "und", "cant": 1, "pu": 67.41, "rend_p": 0, "rend_o": 0.6667, "rend_op": 0.3333, "tar_p": 0, "tar_o": 10.64, "tar_op": 6.26, "h_prev_p": 0, "h_prev_o": 0.67, "h_prev_op": 0.33, "c_prev_p": 0, "c_prev_o": 7.09, "c_prev_op": 2.09, "c_prev_total": 9.18, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3", "desc": "ESTRUCTURAS DE SOPORTE ALUMBRADO EXTERIOR", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.1", "desc": "EXCAVACIÓN PARA APERTURA DE HOYO  DE 0.50X0.50X1.00 M3", "unid": "m³", "cant": 9, "pu": 142.77, "rend_p": 5.3333, "rend_o": 0.8, "rend_op": 2.6667, "tar_p": 75.79, "tar_o": 12.77, "tar_op": 50.05, "h_prev_p": 48.0, "h_prev_o": 7.2, "h_prev_op": 24.0, "c_prev_p": 3637.9, "c_prev_o": 91.94, "c_prev_op": 1201.22, "c_prev_total": 4931.06, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.2", "desc": "SUMINISTRO DE POSTE ORNAMENTAL DE 7m", "unid": "und", "cant": 8, "pu": 1220.78, "rend_p": 1.0667, "rend_o": 0, "rend_op": 0.2667, "tar_p": 15.16, "tar_o": 0, "tar_op": 5.01, "h_prev_p": 8.53, "h_prev_o": 0, "h_prev_op": 2.13, "c_prev_p": 129.37, "c_prev_o": 0, "c_prev_op": 10.69, "c_prev_total": 140.06, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.3", "desc": "SUMINISTRO DE PASTORAL ORNAMENTAL DE 7M (DADO DE CONCRETO)", "unid": "und", "cant": 3, "pu": 770.78, "rend_p": 1.0667, "rend_o": 0, "rend_op": 0.2667, "tar_p": 15.16, "tar_o": 0, "tar_op": 5.01, "h_prev_p": 3.2, "h_prev_o": 0, "h_prev_op": 0.8, "c_prev_p": 48.51, "c_prev_o": 0, "c_prev_op": 4.01, "c_prev_total": 52.52, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.4", "desc": "ESTRUCTURA DE FIJACIÓN DE POSTE ORNAMENTAL DE 7m (DADO DE CONCRETO)", "unid": "und", "cant": 8, "pu": 550, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.5", "desc": "IZAJE DE POSTE ORNAMENTAL DE 7m", "unid": "und", "cant": 8, "pu": 247.18, "rend_p": 12, "rend_o": 2, "rend_op": 2, "tar_p": 170.52, "tar_o": 31.92, "tar_op": 37.54, "h_prev_p": 96, "h_prev_o": 16, "h_prev_op": 16, "c_prev_p": 16369.92, "c_prev_o": 510.72, "c_prev_op": 600.64, "c_prev_total": 17481.28, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.3.6", "desc": "FIJACIÓN DE PASTORAL ORNAMENTAL DE 1m(EN PARED)", "unid": "und", "cant": 3, "pu": 607.18, "rend_p": 12, "rend_o": 2, "rend_op": 2, "tar_p": 170.52, "tar_o": 31.92, "tar_op": 37.54, "h_prev_p": 36, "h_prev_o": 6, "h_prev_op": 6, "c_prev_p": 6138.72, "c_prev_o": 191.52, "c_prev_op": 225.24, "c_prev_total": 6555.48, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.4", "desc": "INSTALACIÓN DEL SISTEMA DE PUESTA A TIERRA", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.4.1", "desc": "APERTURA DE HOYO DE 1.00x1.00 x3.00m ", "unid": "m³", "cant": 9, "pu": 97.92, "rend_p": 5.3333, "rend_o": 0.2667, "rend_op": 0.8, "tar_p": 75.79, "tar_o": 4.26, "tar_op": 15.02, "h_prev_p": 48.0, "h_prev_o": 2.4, "h_prev_op": 7.2, "c_prev_p": 3637.9, "c_prev_o": 10.23, "c_prev_op": 108.14, "c_prev_total": 3756.27, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.4.2", "desc": " SISTEMA DE PUESTA A TIERRA (S.P.A.T) PARA S.E", "unid": "und", "cant": 3, "pu": 1690.36, "rend_p": 16, "rend_o": 8, "rend_op": 8, "tar_p": 227.36, "tar_o": 127.68, "tar_op": 150.16, "h_prev_p": 48, "h_prev_o": 24, "h_prev_op": 24, "c_prev_p": 10913.28, "c_prev_o": 3064.32, "c_prev_op": 3603.84, "c_prev_total": 17581.44, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.5", "desc": "ARTEFACTOS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.5.1", "desc": "LÁMPARAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.5.1.1", "desc": "ARTEFACTO DE ILUMINACIÓN TIPO FAROLA LED DE 100W", "unid": "und", "cant": 11, "pu": 1970.84, "rend_p": 1.6, "rend_o": 0.24, "rend_op": 0.8, "tar_p": 22.74, "tar_o": 3.83, "tar_op": 15.02, "h_prev_p": 17.6, "h_prev_o": 2.64, "h_prev_op": 8.8, "c_prev_p": 400.22, "c_prev_o": 10.11, "c_prev_op": 132.18, "c_prev_total": 542.51, "is_group": false, "has_mo": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.6", "desc": "PRUEBAS ELÉCTRICAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.6.1", "desc": "PRUEBAS DE CONTINUIDAD ELÉCTRICA", "unid": "und", "cant": 3, "pu": 1000, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.6.2", "desc": "PRUEBAS DE AISLAMIENTO ELÉCTRICO", "unid": "und", "cant": 3, "pu": 1000, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.6.3", "desc": "PRUEBAS DE ILUMINACIÓN EXTERIOR ", "unid": "und", "cant": 1, "pu": 750, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.6.4", "desc": "PRUEBAS DE RESISTENCIA DE PUESTA A TIERRA", "unid": "und", "cant": 3, "pu": 500, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.7", "desc": "PARTIDAS VARIAS", "is_group": true, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.7.1", "desc": "DESMONTAJE DE INSTALACIONES EXISTENTES", "unid": "und", "cant": 1, "pu": 1500, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": "1.5.7.2", "desc": "TRASLADO A ALMACEN DE EQUIPOS Y ACCESORIOS DESMONTADOS", "unid": "und", "cant": 1, "pu": 1000, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Eléctricas"}, {"item": 1.6, "desc": "INSTALACIONES ESPECIALES", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1", "desc": "CABLEADO ESTRUCTURADO EN INTERIORES DE EDIFICIOS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1", "desc": "CABLES EN TUBERIAS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1.1", "desc": "CABLE ÓPTICO SM OS2 DE 12 FIBRAS", "unid": "m", "cant": 160, "pu": 17.68, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1.2", "desc": "PIGTAIL LC SM OS2 DE 1.0m", "unid": "und", "cant": 4, "pu": 69.62, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1.3", "desc": "PATCH CORD LC-LC DUPLEX SM OS2 DE 2.0m", "unid": "und", "cant": 2, "pu": 160.53, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1.4", "desc": "CABLE F/UTP CAT 6A LSZH BLINDADO", "unid": "m", "cant": 610, "pu": 4.3, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.1.1.5", "desc": "PATCH CORD CAT6A APANTALLADO DE 0.5m", "unid": "und", "cant": 10, "pu": 58.5, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2", "desc": "CANALETAS , CONDUCTOS Y/O TUBERÍAS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.1", "desc": "TUBERIA METÁLICA FLEXIBLE REVESTIDA CON PVC FILTRO UV DE 40mm Ø", "unid": "m", "cant": 10, "pu": 39.37, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.2, "tar_p": 0, "tar_o": 3.19, "tar_op": 3.75, "h_prev_p": 0, "h_prev_o": 2, "h_prev_op": 2, "c_prev_p": 0, "c_prev_o": 6.38, "c_prev_op": 7.5, "c_prev_total": 13.88, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.2", "desc": "TUBERIA METÁLICA FLEXIBLE REVESTIDA CON PVC FILTRO UV DE 25mm Ø", "unid": "m", "cant": 55, "pu": 20.7, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.2, "tar_p": 0, "tar_o": 3.19, "tar_op": 3.75, "h_prev_p": 0, "h_prev_o": 11, "h_prev_op": 11, "c_prev_p": 0, "c_prev_o": 35.09, "c_prev_op": 41.25, "c_prev_total": 76.34, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.3", "desc": "TUBERIA PVC-SAP DE 40mm Ø", "unid": "m", "cant": 360, "pu": 10.58, "rend_p": 0.064, "rend_o": 0.032, "rend_op": 0.032, "tar_p": 0.91, "tar_o": 0.51, "tar_op": 0.6, "h_prev_p": 23.04, "h_prev_o": 11.52, "h_prev_op": 11.52, "c_prev_p": 20.97, "c_prev_o": 5.88, "c_prev_op": 6.91, "c_prev_total": 33.75, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.4", "desc": "CONECTOR CURVO HERMÉTICO PARA TUBERIA FLEXIBLE DE 40mm Ø", "unid": "und", "cant": 2, "pu": 32.15, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.2, "tar_p": 0, "tar_o": 3.19, "tar_op": 3.75, "h_prev_p": 0, "h_prev_o": 0.4, "h_prev_op": 0.4, "c_prev_p": 0, "c_prev_o": 1.28, "c_prev_op": 1.5, "c_prev_total": 2.78, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.5", "desc": "CONECTOR RECTO HERMÉTICO PARA TUBERIA FLEXIBLE DE 25mm Ø", "unid": "und", "cant": 23, "pu": 14.15, "rend_p": 0, "rend_o": 0.2, "rend_op": 0.2, "tar_p": 0, "tar_o": 3.19, "tar_op": 3.75, "h_prev_p": 0, "h_prev_o": 4.6, "h_prev_op": 4.6, "c_prev_p": 0, "c_prev_o": 14.67, "c_prev_op": 17.25, "c_prev_total": 31.92, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.6", "desc": "CURVA PVC-SAP DE 40mm Ø", "unid": "und", "cant": 10, "pu": 15.62, "rend_p": 0.2, "rend_o": 0, "rend_op": 0.02, "tar_p": 2.84, "tar_o": 0, "tar_op": 0.38, "h_prev_p": 2, "h_prev_o": 0, "h_prev_op": 0.2, "c_prev_p": 5.68, "c_prev_o": 0, "c_prev_op": 0.08, "c_prev_total": 5.76, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.7", "desc": "UNION PVC-SAP DE 40mm Ø", "unid": "und", "cant": 40, "pu": 14.32, "rend_p": 0.2, "rend_o": 0, "rend_op": 0.02, "tar_p": 2.84, "tar_o": 0, "tar_op": 0.38, "h_prev_p": 8, "h_prev_o": 0, "h_prev_op": 0.8, "c_prev_p": 22.72, "c_prev_o": 0, "c_prev_op": 0.3, "c_prev_total": 23.02, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.2.8", "desc": "CONECTOR PVC-SAP DE 40mm Ø", "unid": "und", "cant": 130, "pu": 12.59, "rend_p": 0.2, "rend_o": 0, "rend_op": 0.2, "tar_p": 2.84, "tar_o": 0, "tar_op": 3.75, "h_prev_p": 26, "h_prev_o": 0, "h_prev_op": 26, "c_prev_p": 73.84, "c_prev_o": 0, "c_prev_op": 97.5, "c_prev_total": 171.34, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.3", "desc": "SALIDA DE TELECOMUNICACIONES", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.3.1", "desc": "SALIDA DE DATOS PARA CCTV", "unid": "und", "cant": 11, "pu": 68.91, "rend_p": 0.1333, "rend_o": 0, "rend_op": 0.2667, "tar_p": 1.89, "tar_o": 0, "tar_op": 5.01, "h_prev_p": 1.47, "h_prev_o": 0, "h_prev_op": 2.93, "c_prev_p": 2.77, "c_prev_o": 0, "c_prev_op": 14.7, "c_prev_total": 17.47, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.4", "desc": "BUZONES O CAMARAS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.4.1", "desc": "BUZON DE CONCRETO DE 0.60X0.60X0.60M", "unid": "und", "cant": 2, "pu": 245.04, "rend_p": 2, "rend_o": 1, "rend_op": 1, "tar_p": 28.42, "tar_o": 15.96, "tar_op": 18.77, "h_prev_p": 4, "h_prev_o": 2, "h_prev_op": 2, "c_prev_p": 113.68, "c_prev_o": 31.92, "c_prev_op": 37.54, "c_prev_total": 183.14, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5", "desc": "ZANJAS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.1", "desc": "EXCAVACIÓN DE HOYO P/BUZÓN DE 0.60x0.60x0.60m ", "unid": "m³", "cant": 1.02, "pu": 39.07, "rend_p": 2.4, "rend_o": 0.24, "rend_op": 0, "tar_p": 34.1, "tar_o": 3.83, "tar_op": 0, "h_prev_p": 2.45, "h_prev_o": 0.24, "h_prev_op": 0, "c_prev_p": 83.48, "c_prev_o": 0.94, "c_prev_op": 0, "c_prev_total": 84.41, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.2", "desc": "EXCAVACIÓN DE ZANJA DE 0.40m DE ANCHO x 0.60m DE PROF.", "unid": "m³", "cant": 6, "pu": 39.07, "rend_p": 2.4, "rend_o": 0.24, "rend_op": 0, "tar_p": 34.1, "tar_o": 3.83, "tar_op": 0, "h_prev_p": 14.4, "h_prev_o": 1.44, "h_prev_op": 0, "c_prev_p": 491.04, "c_prev_o": 5.52, "c_prev_op": 0, "c_prev_total": 496.56, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.3", "desc": "REFINE Y NIVELACIÓN DE ZANJA DE 0.40 DE ANCHO x 0.60m DE PROF.", "unid": "m", "cant": 25, "pu": 26.05, "rend_p": 1.6, "rend_o": 0.16, "rend_op": 0, "tar_p": 22.74, "tar_o": 2.55, "tar_op": 0, "h_prev_p": 40, "h_prev_o": 4, "h_prev_op": 0, "c_prev_p": 909.6, "c_prev_o": 10.2, "c_prev_op": 0, "c_prev_total": 919.8, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.4", "desc": "COLOCACIÓN DE CAMA DE ARENA PARA CONDUCTOR SUBTERRANEO", "unid": "m²", "cant": 2, "pu": 176.05, "rend_p": 1.6, "rend_o": 0.16, "rend_op": 0, "tar_p": 22.74, "tar_o": 2.55, "tar_op": 0, "h_prev_p": 3.2, "h_prev_o": 0.32, "h_prev_op": 0, "c_prev_p": 72.77, "c_prev_o": 0.82, "c_prev_op": 0, "c_prev_total": 73.58, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.5", "desc": "COLOCACIÓN DE CINTA SEÑALIZADORA", "unid": "m", "cant": 180, "pu": 2.01, "rend_p": 0.08, "rend_o": 0.008, "rend_op": 0, "tar_p": 1.14, "tar_o": 0.13, "tar_op": 0, "h_prev_p": 14.4, "h_prev_o": 1.44, "h_prev_op": 0, "c_prev_p": 16.42, "c_prev_o": 0.19, "c_prev_op": 0, "c_prev_total": 16.6, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.6", "desc": "COLOCACIÓN DE LADRILLO DE PROTECCIÓN", "unid": "und", "cant": 510, "pu": 2.86, "rend_p": 0.1333, "rend_o": 0.0067, "rend_op": 0, "tar_p": 1.89, "tar_o": 0.11, "tar_op": 0, "h_prev_p": 67.98, "h_prev_o": 3.42, "h_prev_op": 0, "c_prev_p": 128.49, "c_prev_o": 0.38, "c_prev_op": 0, "c_prev_total": 128.86, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.7", "desc": "RELLENO Y COMPACTACIÓN", "unid": "m²", "cant": 15, "pu": 3.25, "rend_p": 0.2, "rend_o": 0.02, "rend_op": 0, "tar_p": 2.84, "tar_o": 0.32, "tar_op": 0, "h_prev_p": 3, "h_prev_o": 0.3, "h_prev_op": 0, "c_prev_p": 8.52, "c_prev_o": 0.1, "c_prev_op": 0, "c_prev_total": 8.62, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.5.8", "desc": "ELIMINACIÓN DE MATERIAL EXCEDENTE", "unid": "m³", "cant": 8.8, "pu": 14.53, "rend_p": 0.8, "rend_o": 0.08, "rend_op": 0, "tar_p": 11.37, "tar_o": 1.28, "tar_op": 0, "h_prev_p": 7.04, "h_prev_o": 0.7, "h_prev_op": 0, "c_prev_p": 80.04, "c_prev_o": 0.9, "c_prev_op": 0, "c_prev_total": 80.95, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.6", "desc": "PATCH PANEL", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.6.1", "desc": "PATCH PANEL CAT 6A  CON 8P, PARA RIEL DIN", "unid": "und", "cant": 2, "pu": 1080, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.7", "desc": "ARMARIO DE DISTRIBUCIÓN", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.7.1", "desc": "GABINETE DE COMUNICACIONES IP66 IK10 DE 80(H) X60(W) X30(D) CM CON ACCESORIOS", "unid": "und", "cant": 1, "pu": 1729.04, "rend_p": 0, "rend_o": 2, "rend_op": 2, "tar_p": 0, "tar_o": 31.92, "tar_op": 37.54, "h_prev_p": 0, "h_prev_o": 2, "h_prev_op": 2, "c_prev_p": 0, "c_prev_o": 63.84, "c_prev_op": 75.08, "c_prev_total": 138.92, "is_group": false, "has_mo": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.7.2", "desc": "MONTAJE DE DISPOSITIVOS ACTIVOS Y PASIVOS EN GABINETE DE COMUNICACIONES", "unid": "Serv.", "cant": 1, "pu": 350, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8", "desc": "SISTEMAS VARIOS", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.1", "desc": "SISTEMA DE CCTV", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.1.1", "desc": "SERVIDOR DE GRABACION DE 16 CANALES", "unid": "und", "cant": 1, "pu": 25430.55, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.1.2", "desc": " CAMARA IP POE 2MP", "unid": "und", "cant": 10, "pu": 3539, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.1.3", "desc": "MONITOR LED 32''", "unid": "und", "cant": 1, "pu": 1000, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.1.4", "desc": "CONFIGURACIÓN Y PUESTA EN MARCHA DEL SISTEMA DE CCTV", "unid": "Serv.", "cant": 1, "pu": 1560, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.2", "desc": "SISTEMA DE CONECTIVIDAD ", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.2.1", "desc": "SWITCH  16P RJ45 10/100/1000 Mbit/s  PoE+,2 SFP 1G", "unid": "und", "cant": 2, "pu": 4480, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.2.2", "desc": "ODF FORMATO RIEL DIN, PARA 12 FIBRAS CON 6 ACOPLADORES LC DUPLEX", "unid": "und", "cant": 2, "pu": 592, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.2.3", "desc": "CERTIFICACIÓN DE ENLACE DE CABLE F/UTP CAT 6A", "unid": "und", "cant": 10, "pu": 30, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.2.4", "desc": "CONFIGURACIÓN Y PUESTA EN MARCHA DEL SISTEMA DE CONECTIVIDAD", "unid": "Serv.", "cant": 1, "pu": 1600, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.3", "desc": "SISTEMA DE PROTECCIÓN Y CONTINUIDAD ELÉCTRICA PARA COMUNICACIONES", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.3.1", "desc": "UPS DE 1KVA", "unid": "und", "cant": 1, "pu": 1300, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.3.2", "desc": " TRANSFORMADOR DE AISLAMIENTO", "unid": "und", "cant": 1, "pu": 850, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.3.3", "desc": "UNIDAD DE DISTRIBUCIÓN DE ENERGÍA PDU HORIZONTAL 8 SALIDAS, 16 A", "unid": "und", "cant": 1, "pu": 160, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.3.4", "desc": "PROTECTOR CONTRA SOBRETENSIONES ETHERNET 1000BASE-T", "unid": "und", "cant": 10, "pu": 487.3, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.4", "desc": "SISTEMA DE PROTECCIÓN Y CONTINUIDAD ELÉCTRICA PARA COMUNICACIONES", "is_group": true, "specialty": "Instalaciones Especiales"}, {"item": "1.6.8.4.1", "desc": "POZO PUESTA A TIERRA", "unid": "und", "cant": 1, "pu": 2600, "rend_p": 0, "rend_o": 0, "rend_op": 0, "tar_p": 0, "tar_o": 0, "tar_op": 0, "h_prev_p": 0, "h_prev_o": 0, "h_prev_op": 0, "c_prev_p": 0, "c_prev_o": 0, "c_prev_op": 0, "c_prev_total": 0, "is_group": false, "has_mo": false, "specialty": "Instalaciones Especiales"}]};
+const PARTIDAS = DATA.partidas;
+const TARIFAS = DATA.tarifas;
+const SPECS = [...new Set(PARTIDAS.filter(p=>!p.is_group).map(p=>p.specialty))];
+const STORAGE_KEY = 'control_mo_balcon_cusqueno_v1';
+
+const SPEC_COLORS = {
+  'Obras Provisionales y Seguridad': '#F59E0B',
+  'Estructuras': '#7C3AED',
+  'Arquitectura': '#0E7C7B',
+  'Instalaciones Sanitarias': '#2563EB',
+  'Instalaciones Eléctricas': '#DB2777',
+  'Instalaciones Especiales': '#16A34A',
+  'Otros': '#6B7280'
+};
+const CAT_COLORS = {p:'#2563EB',o:'#F59E0B',op:'#16A34A'};
+const CAT_NAMES = {p:'Peón',o:'Oficial',op:'Operario'};
+const DIAS = ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'];
+
+// ========================================================
+// STATE & STORAGE
+// ========================================================
+let registros = loadRegistros();
+let currentSemana = 1;
+let sortCol = 'item', sortDir = 1;
+let regFilters = {search:'',spec:'',onlyMo:false};
+let tablaFilters = {search:'',spec:'',estado:''};
+let charts = {};
+
+function loadRegistros(){
+  try {
+    const r = localStorage.getItem(STORAGE_KEY);
+    return r ? JSON.parse(r) : {};
+  } catch(e) { return {}; }
+}
+function saveRegistros(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+    updateLastSave();
+  } catch(e) { toast('Error al guardar: ' + e.message); }
+}
+function updateLastSave(){
+  const d = new Date();
+  const t = d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('last-save').textContent = `Guardado ${t}`;
+}
+
+// ========================================================
+// CALCULATIONS
+// ========================================================
+// horas ejecutadas para una partida (suma de todas las semanas+dias+categorias)
+function horasEjecutadas(item){
+  const r = {p:0,o:0,op:0};
+  for(let s=1;s<=4;s++){
+    const sem = registros[s];
+    if(!sem || !sem[item]) continue;
+    for(let d=0;d<7;d++){
+      const dia = sem[item][d];
+      if(!dia) continue;
+      r.p += +dia.p || 0;
+      r.o += +dia.o || 0;
+      r.op += +dia.op || 0;
+    }
+  }
+  return r;
+}
+function horasEjecutadasSemana(item, sem){
+  const r = {p:0,o:0,op:0};
+  const ss = registros[sem];
+  if(!ss || !ss[item]) return r;
+  for(let d=0;d<7;d++){
+    const dia = ss[item][d];
+    if(!dia) continue;
+    r.p += +dia.p || 0;
+    r.o += +dia.o || 0;
+    r.op += +dia.op || 0;
+  }
+  return r;
+}
+function costoPartida(p, h){
+  return (h.p * (p.tar_p||0)) + (h.o * (p.tar_o||0)) + (h.op * (p.tar_op||0));
+}
+function getEstado(p){
+  if(p.is_group) return 'group';
+  if(!p.has_mo) return 'no-mo';
+  const h = horasEjecutadas(p.item);
+  const cEj = costoPartida(p, h);
+  if(cEj === 0) return 'no-iniciado';
+  const pct = cEj / (p.c_prev_total || 1);
+  if(pct > 1.10) return 'sobre';
+  if(pct >= 0.95) return 'completado';
+  return 'progreso';
+}
+
+// ========================================================
+// FORMATTING
+// ========================================================
+const fmt = {
+  money: v => 'S/. ' + (v||0).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2}),
+  num:   v => (v||0).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2}),
+  hh:    v => ((v||0).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})) + ' hh',
+  pct:   v => ((v||0)*100).toFixed(1) + '%'
+};
+
+function toast(msg, dur=2000){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+
+// ========================================================
+// OVERVIEW PANEL
+// ========================================================
+function renderOverview(){
+  const totals = {prev:0, ej:0, hp:0, he:0, hp_cat:{p:0,o:0,op:0}, he_cat:{p:0,o:0,op:0}, c_cat:{p:0,o:0,op:0}, c_ej_cat:{p:0,o:0,op:0}};
+  PARTIDAS.forEach(p=>{
+    if(p.is_group) return;
+    totals.prev += p.c_prev_total;
+    totals.hp += (p.h_prev_p + p.h_prev_o + p.h_prev_op);
+    totals.hp_cat.p += p.h_prev_p;
+    totals.hp_cat.o += p.h_prev_o;
+    totals.hp_cat.op += p.h_prev_op;
+    totals.c_cat.p += p.c_prev_p;
+    totals.c_cat.o += p.c_prev_o;
+    totals.c_cat.op += p.c_prev_op;
+    const h = horasEjecutadas(p.item);
+    totals.he_cat.p += h.p;
+    totals.he_cat.o += h.o;
+    totals.he_cat.op += h.op;
+    totals.he += h.p + h.o + h.op;
+    const cEj = costoPartida(p, h);
+    totals.ej += cEj;
+    totals.c_ej_cat.p += h.p * (p.tar_p||0);
+    totals.c_ej_cat.o += h.o * (p.tar_o||0);
+    totals.c_ej_cat.op += h.op * (p.tar_op||0);
+  });
+
+  document.getElementById('kpi-prev').textContent = fmt.money(totals.prev);
+  document.getElementById('kpi-ej').textContent = fmt.money(totals.ej);
+  document.getElementById('kpi-ej-sub').textContent = totals.prev>0 ? fmt.pct(totals.ej/totals.prev) + ' del previsto' : '—';
+  const saldo = totals.prev - totals.ej;
+  document.getElementById('kpi-saldo').textContent = fmt.money(saldo);
+  document.getElementById('kpi-saldo').style.color = saldo < 0 ? '#DC2626' : '#1f2937';
+  document.getElementById('kpi-saldo-sub').textContent = saldo < 0 ? '⚠️ Sobreejecutado' : 'Por ejecutar';
+  document.getElementById('kpi-avance').textContent = totals.prev>0 ? fmt.pct(totals.ej/totals.prev) : '0.0%';
+  document.getElementById('kpi-hp').textContent = fmt.hh(totals.hp);
+  document.getElementById('kpi-he').textContent = fmt.hh(totals.he);
+  document.getElementById('kpi-he-sub').textContent = totals.hp>0 ? fmt.pct(totals.he/totals.hp) + ' del previsto' : '—';
+  document.getElementById('meta-partidas').textContent = PARTIDAS.filter(p=>!p.is_group && p.has_mo).length + ' partidas con MO';
+
+  drawChartCategoria(totals);
+  drawChartEspecialidad();
+  drawChartTop10();
+  drawChartSemanas();
+}
+
+function drawChartCategoria(totals){
+  if(charts.cat) charts.cat.destroy();
+  charts.cat = new Chart(document.getElementById('chart-cat'), {
+    type:'doughnut',
+    data:{
+      labels:['Peón','Oficial','Operario'],
+      datasets:[{data:[totals.c_cat.p, totals.c_cat.o, totals.c_cat.op], backgroundColor:[CAT_COLORS.p, CAT_COLORS.o, CAT_COLORS.op], borderWidth:0}]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmt.money(ctx.raw)+' ('+(ctx.raw/totals.prev*100).toFixed(1)+'%)'}}}}
+  });
+}
+
+function drawChartEspecialidad(){
+  const bySpec = {};
+  PARTIDAS.forEach(p=>{
+    if(p.is_group) return;
+    bySpec[p.specialty] = (bySpec[p.specialty]||0) + p.c_prev_total;
+  });
+  const labels = Object.keys(bySpec);
+  const data = labels.map(l=>bySpec[l]);
+  const total = data.reduce((a,b)=>a+b,0);
+  if(charts.spec) charts.spec.destroy();
+  charts.spec = new Chart(document.getElementById('chart-spec'), {
+    type:'doughnut',
+    data:{labels, datasets:[{data, backgroundColor:labels.map(l=>SPEC_COLORS[l]||'#6B7280'), borderWidth:0}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:12,font:{size:10}}}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmt.money(ctx.raw)+' ('+(ctx.raw/total*100).toFixed(1)+'%)'}}}}
+  });
+}
+
+function drawChartTop10(){
+  const top = PARTIDAS.filter(p=>!p.is_group && p.has_mo).sort((a,b)=>b.c_prev_total-a.c_prev_total).slice(0,10);
+  if(charts.top10) charts.top10.destroy();
+  charts.top10 = new Chart(document.getElementById('chart-top10'), {
+    type:'bar',
+    data:{
+      labels: top.map(p=>p.desc.length>50 ? p.desc.slice(0,50)+'…' : p.desc),
+      datasets:[
+        {label:'Previsto', data: top.map(p=>p.c_prev_total), backgroundColor:'#0E7C7B', borderRadius:4},
+        {label:'Ejecutado', data: top.map(p=>{const h=horasEjecutadas(p.item); return costoPartida(p,h);}), backgroundColor:'#16A34A', borderRadius:4},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{legend:{position:'top'}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmt.money(ctx.raw)}}}, scales:{x:{ticks:{callback:v=>'S/. '+v.toLocaleString('es-PE')}}, y:{ticks:{font:{size:10}}}}}
+  });
+}
+
+function drawChartSemanas(){
+  const semData = [];
+  let acumPrev = 0;
+  let acumEj = 0;
+  const totalPrev = PARTIDAS.filter(p=>!p.is_group).reduce((s,p)=>s+p.c_prev_total,0);
+  const previstoPorSemana = totalPrev / 4;
+  for(let s=1;s<=4;s++){
+    let ejSem = 0;
+    PARTIDAS.forEach(p=>{
+      if(p.is_group) return;
+      const h = horasEjecutadasSemana(p.item, s);
+      ejSem += costoPartida(p,h);
+    });
+    acumPrev += previstoPorSemana;
+    acumEj += ejSem;
+    semData.push({s, ejSem, acumPrev, acumEj});
+  }
+  if(charts.semanas) charts.semanas.destroy();
+  charts.semanas = new Chart(document.getElementById('chart-semanas'), {
+    type:'bar',
+    data:{
+      labels: semData.map(d=>'Semana '+d.s),
+      datasets:[
+        {label:'Ejecutado en la semana', data: semData.map(d=>d.ejSem), backgroundColor:'#0E7C7B', borderRadius:4, order:2},
+        {type:'line', label:'Acumulado ejecutado', data: semData.map(d=>d.acumEj), borderColor:'#16A34A', backgroundColor:'#16A34A', tension:.3, pointRadius:5, pointBackgroundColor:'#16A34A', order:1},
+        {type:'line', label:'Acumulado previsto (lineal)', data: semData.map(d=>d.acumPrev), borderColor:'#F59E0B', backgroundColor:'#F59E0B', borderDash:[6,4], tension:0, pointRadius:0, order:0},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmt.money(ctx.raw)}}}, scales:{y:{ticks:{callback:v=>'S/. '+v.toLocaleString('es-PE')}}}}
+  });
+}
+
+// ========================================================
+// PARTIDAS PANEL
+// ========================================================
+function renderPartidas(){
+  let rows = PARTIDAS.slice();
+  // filter
+  if(tablaFilters.search){
+    const s = tablaFilters.search.toLowerCase();
+    rows = rows.filter(p=>(String(p.item||'').toLowerCase().includes(s) || (p.desc||'').toLowerCase().includes(s)));
+  }
+  if(tablaFilters.spec){
+    rows = rows.filter(p=>p.specialty===tablaFilters.spec);
+  }
+  if(tablaFilters.estado){
+    rows = rows.filter(p=>!p.is_group && getEstado(p)===tablaFilters.estado);
+  }
+  // sort (skip group rows: pin them by item)
+  if(sortCol){
+    rows.sort((a,b)=>{
+      if(a.is_group && !b.is_group) return -1;
+      if(b.is_group && !a.is_group) return 1;
+      let va, vb;
+      if(sortCol==='item'){va=a.item||'';vb=b.item||'';return sortDir*(va.toString().localeCompare(vb.toString(),undefined,{numeric:true}));}
+      if(sortCol==='desc'){va=a.desc||'';vb=b.desc||'';return sortDir*va.localeCompare(vb);}
+      if(sortCol==='cant'){va=a.cant||0;vb=b.cant||0;}
+      if(sortCol==='h_prev'){va=(a.h_prev_p||0)+(a.h_prev_o||0)+(a.h_prev_op||0);vb=(b.h_prev_p||0)+(b.h_prev_o||0)+(b.h_prev_op||0);}
+      if(sortCol==='h_ej'){const ha=horasEjecutadas(a.item);const hb=horasEjecutadas(b.item);va=ha.p+ha.o+ha.op;vb=hb.p+hb.o+hb.op;}
+      if(sortCol==='c_prev'){va=a.c_prev_total||0;vb=b.c_prev_total||0;}
+      if(sortCol==='c_ej'){va=costoPartida(a,horasEjecutadas(a.item));vb=costoPartida(b,horasEjecutadas(b.item));}
+      if(sortCol==='saldo'){va=(a.c_prev_total||0)-costoPartida(a,horasEjecutadas(a.item));vb=(b.c_prev_total||0)-costoPartida(b,horasEjecutadas(b.item));}
+      if(sortCol==='avance'){const ca=costoPartida(a,horasEjecutadas(a.item));const cb=costoPartida(b,horasEjecutadas(b.item));va=a.c_prev_total>0?ca/a.c_prev_total:0;vb=b.c_prev_total>0?cb/b.c_prev_total:0;}
+      return sortDir*((va||0)-(vb||0));
+    });
+  }
+
+  const tbody = document.getElementById('tbody-partidas');
+  if(rows.length===0){
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">🔍</div>No hay partidas que coincidan con los filtros</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(p=>{
+    if(p.is_group){
+      return `<tr class="group-row"><td class="item-cell">${p.item||''}</td><td colspan="9">${p.desc||''}</td></tr>`;
+    }
+    const h = horasEjecutadas(p.item);
+    const hPrevTot = (p.h_prev_p||0)+(p.h_prev_o||0)+(p.h_prev_op||0);
+    const hEjTot = h.p+h.o+h.op;
+    const cEj = costoPartida(p, h);
+    const saldo = (p.c_prev_total||0) - cEj;
+    const pct = p.c_prev_total>0 ? cEj/p.c_prev_total : 0;
+    const estado = getEstado(p);
+    const badgeText = {'no-mo':'Sin MO','no-iniciado':'No iniciado','progreso':'En progreso','completado':'Completado','sobre':'Sobreejecutado'}[estado] || '—';
+    const fillClass = pct>1.10 ? 'over' : (pct<0.05 ? 'low' : '');
+    const fillW = Math.min(pct*100, 110);
+    return `<tr>
+      <td class="item-cell">${p.item||''}</td>
+      <td class="desc-cell">${p.desc||''}</td>
+      <td class="num-cell">${(p.cant||0).toLocaleString('es-PE')} ${p.unid||''}</td>
+      <td class="num-cell">${fmt.num(hPrevTot)}</td>
+      <td class="num-cell">${fmt.num(hEjTot)}</td>
+      <td class="num-cell">${fmt.num(p.c_prev_total)}</td>
+      <td class="num-cell">${fmt.num(cEj)}</td>
+      <td class="num-cell" style="color:${saldo<0?'#DC2626':'inherit'};font-weight:${saldo<0?'700':'400'}">${fmt.num(saldo)}</td>
+      <td>${p.has_mo ? `<div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${fillW}%"></div><div class="progress-text">${fmt.pct(pct)}</div></div>` : '—'}</td>
+      <td><span class="badge ${estado}">${badgeText}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function initSpecFilters(){
+  const sel = document.getElementById('filter-spec');
+  const sel2 = document.getElementById('reg-filter-spec');
+  SPECS.forEach(s=>{
+    sel.innerHTML += `<option value="${s}">${s}</option>`;
+    sel2.innerHTML += `<option value="${s}">${s}</option>`;
+  });
+}
+
+// ========================================================
+// REGISTRO SEMANAL
+// ========================================================
+function renderRegistro(){
+  const candidates = PARTIDAS.filter(p=>!p.is_group);
+  let visibles = candidates;
+  if(regFilters.onlyMo) visibles = visibles.filter(p=>p.has_mo);
+  if(regFilters.search){
+    const s = regFilters.search.toLowerCase();
+    visibles = visibles.filter(p=>String(p.item||'').toLowerCase().includes(s) || (p.desc||'').toLowerCase().includes(s));
+  }
+  if(regFilters.spec) visibles = visibles.filter(p=>p.specialty===regFilters.spec);
+  // sort by item
+  visibles.sort((a,b)=>String(a.item||'').localeCompare(String(b.item||''),undefined,{numeric:true}));
+
+  const cont = document.getElementById('registro-lista');
+  if(visibles.length===0){
+    cont.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div>No hay partidas que coincidan</div>';
+    return;
+  }
+
+  // For mobile/desktop legibility, render at most 30 at once with progressive disclosure
+  const TOP = 40;
+  const slice = visibles.slice(0, TOP);
+  const overflow = visibles.length - slice.length;
+
+  cont.innerHTML = slice.map(p=>{
+    const h = horasEjecutadasSemana(p.item, currentSemana);
+    const hTotalEj = horasEjecutadas(p.item);
+    const cEj = costoPartida(p, hTotalEj);
+    const pct = p.c_prev_total>0 ? cEj/p.c_prev_total : 0;
+    const fillW = Math.min(pct*100, 110);
+    const fillClass = pct>1.10 ? 'over' : (pct<0.05 ? 'low' : '');
+    const sem = registros[currentSemana]||{};
+    const partidaReg = sem[p.item] || {};
+    return `<div class="registro-card" data-item="${p.item}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-family:monospace;font-size:11px;color:#6b7280;font-weight:600">${p.item} · ${p.specialty}</div>
+          <div style="font-weight:600;color:#1f2937;margin-top:2px;font-size:13px">${p.desc}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:2px">${p.cant} ${p.unid} · Previsto: ${fmt.money(p.c_prev_total)}</div>
+        </div>
+        <div style="text-align:right;min-width:120px">
+          <div class="progress-bar" style="width:110px"><div class="progress-fill ${fillClass}" style="width:${fillW}%"></div><div class="progress-text">${fmt.pct(pct)}</div></div>
+        </div>
+      </div>
+      ${p.has_mo ? `
+      <div style="margin-top:12px;border-top:1px solid #f3f4f6;padding-top:10px">
+        ${['p','o','op'].filter(c=>p['rend_'+c]>0).map(c=>`
+        <div style="margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">${CAT_NAMES[c]} <span style="color:#9ca3af;font-weight:400">(tarifa S/. ${p['tar_'+c]||0}/hh)</span></div>
+          <div class="partida-input-grid">
+            ${DIAS.map((d,i)=>`<div class="day-input">
+              <div class="day-label">${d}</div>
+              <input type="number" min="0" step="0.5" value="${(partidaReg[i]?.[c])||''}" placeholder="0" data-item="${p.item}" data-cat="${c}" data-day="${i}">
+            </div>`).join('')}
+          </div>
+        </div>`).join('')}
+        <div class="summary-strip">
+          <div class="mini"><div class="mini-label">Esta semana</div><div class="mini-val">${fmt.hh(h.p+h.o+h.op)}</div></div>
+          <div class="mini"><div class="mini-label">Acumulado</div><div class="mini-val">${fmt.hh(hTotalEj.p+hTotalEj.o+hTotalEj.op)}</div></div>
+          <div class="mini"><div class="mini-label">Costo ejec.</div><div class="mini-val">${fmt.money(cEj)}</div></div>
+          <div class="mini"><div class="mini-label">Saldo</div><div class="mini-val" style="color:${(p.c_prev_total-cEj)<0?'#DC2626':'#1f2937'}">${fmt.money(p.c_prev_total - cEj)}</div></div>
+        </div>
+      </div>
+      ` : '<div style="margin-top:8px;font-size:12px;color:#9ca3af;font-style:italic">Esta partida no tiene MO definida en el presupuesto.</div>'}
+    </div>`;
+  }).join('');
+
+  if(overflow>0){
+    cont.innerHTML += `<div class="empty-state" style="padding:20px"><div style="font-size:13px">Mostrando ${TOP} de ${visibles.length} partidas. Usa el buscador para acotar.</div></div>`;
+  }
+
+  // Bind inputs
+  cont.querySelectorAll('input[type=number]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const item = e.target.dataset.item;
+      const cat = e.target.dataset.cat;
+      const day = +e.target.dataset.day;
+      const val = parseFloat(e.target.value) || 0;
+      if(!registros[currentSemana]) registros[currentSemana] = {};
+      if(!registros[currentSemana][item]) registros[currentSemana][item] = {};
+      if(!registros[currentSemana][item][day]) registros[currentSemana][item][day] = {p:0,o:0,op:0};
+      registros[currentSemana][item][day][cat] = val;
+      saveRegistros();
+      toast('✓ Guardado');
+      renderRegistro();
+    });
+  });
+}
+
+// ========================================================
+// ANÁLISIS PANEL
+// ========================================================
+function renderAnalisis(){
+  const detalle = PARTIDAS.filter(p=>!p.is_group && p.has_mo);
+  let prevTotal=0, ejTotal=0, iniciadas=0, completadas=0, sobre=0;
+  let hp=0, he=0;
+  detalle.forEach(p=>{
+    prevTotal += p.c_prev_total;
+    hp += p.h_prev_p+p.h_prev_o+p.h_prev_op;
+    const h = horasEjecutadas(p.item);
+    he += h.p+h.o+h.op;
+    const cEj = costoPartida(p,h);
+    ejTotal += cEj;
+    if(cEj > 0) iniciadas++;
+    const pct = p.c_prev_total>0 ? cEj/p.c_prev_total : 0;
+    if(pct >= 0.95) completadas++;
+    if(pct > 1.10) sobre++;
+  });
+
+  document.getElementById('kpi-eficiencia').textContent = hp>0 ? fmt.pct(he/hp) : '0.0%';
+  document.getElementById('kpi-iniciadas').textContent = iniciadas;
+  document.getElementById('kpi-iniciadas-sub').textContent = `de ${detalle.length} (${fmt.pct(iniciadas/detalle.length)})`;
+  document.getElementById('kpi-completadas').textContent = completadas;
+  document.getElementById('kpi-sobre').textContent = sobre;
+  document.getElementById('kpi-sobre').style.color = sobre>0 ? '#DC2626' : '#1f2937';
+
+  // Comp by spec
+  const bySpec = {};
+  PARTIDAS.forEach(p=>{
+    if(p.is_group) return;
+    if(!bySpec[p.specialty]) bySpec[p.specialty]={prev:0,ej:0};
+    bySpec[p.specialty].prev += p.c_prev_total;
+    const h = horasEjecutadas(p.item);
+    bySpec[p.specialty].ej += costoPartida(p,h);
+  });
+  const labels = Object.keys(bySpec);
+  if(charts.compSpec) charts.compSpec.destroy();
+  charts.compSpec = new Chart(document.getElementById('chart-comp-spec'),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Previsto', data:labels.map(l=>bySpec[l].prev), backgroundColor:'#0E7C7B', borderRadius:4},
+        {label:'Ejecutado', data:labels.map(l=>bySpec[l].ej), backgroundColor:'#16A34A', borderRadius:4},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmt.money(ctx.raw)}}}, scales:{y:{ticks:{callback:v=>'S/. '+v.toLocaleString('es-PE')}}, x:{ticks:{font:{size:10}}}}}
+  });
+
+  // Comp categoria
+  let hpc={p:0,o:0,op:0}, hec={p:0,o:0,op:0};
+  detalle.forEach(p=>{
+    hpc.p += p.h_prev_p; hpc.o += p.h_prev_o; hpc.op += p.h_prev_op;
+    const h = horasEjecutadas(p.item);
+    hec.p += h.p; hec.o += h.o; hec.op += h.op;
+  });
+  if(charts.compCat) charts.compCat.destroy();
+  charts.compCat = new Chart(document.getElementById('chart-comp-cat'),{
+    type:'bar',
+    data:{
+      labels:['Peón','Oficial','Operario'],
+      datasets:[
+        {label:'Previsto (hh)', data:[hpc.p,hpc.o,hpc.op], backgroundColor:'#0E7C7B', borderRadius:4},
+        {label:'Ejecutado (hh)', data:[hec.p,hec.o,hec.op], backgroundColor:'#16A34A', borderRadius:4},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmt.hh(ctx.raw)}}}, scales:{y:{ticks:{callback:v=>v.toLocaleString('es-PE')+' hh'}}}}
+  });
+
+  // Alerts
+  const alerts = [];
+  // Sobreejecutadas
+  detalle.forEach(p=>{
+    const h = horasEjecutadas(p.item);
+    const cEj = costoPartida(p,h);
+    const pct = p.c_prev_total>0 ? cEj/p.c_prev_total : 0;
+    if(pct > 1.10){
+      const exceso = cEj - p.c_prev_total;
+      alerts.push({type:'err', icon:'⚠️', text:`<strong>${p.item}</strong> · ${p.desc.slice(0,60)} — ejecutado ${fmt.pct(pct)} del previsto (exceso de ${fmt.money(exceso)})`});
+    }
+  });
+  // No iniciadas con saldo de tiempo
+  const totalWeeksLogged = Object.keys(registros).length;
+  if(totalWeeksLogged >= 2){
+    const noIni = detalle.filter(p=>{const h=horasEjecutadas(p.item);return h.p+h.o+h.op===0;});
+    if(noIni.length > 0 && noIni.length <= 8){
+      alerts.push({type:'warn', icon:'🕐', text:`<strong>${noIni.length} partidas con MO no se han iniciado</strong> después de ${totalWeeksLogged} semanas registradas.`});
+    } else if(noIni.length > 8){
+      alerts.push({type:'warn', icon:'🕐', text:`<strong>${noIni.length} partidas con MO no se han iniciado.</strong> Revisa el cronograma de obra.`});
+    }
+  }
+  // Avance vs lo esperado lineal
+  if(totalWeeksLogged > 0 && prevTotal > 0){
+    const expectedPct = Math.min(totalWeeksLogged/4, 1);
+    const realPct = ejTotal/prevTotal;
+    if(realPct < expectedPct * 0.7){
+      alerts.push({type:'warn', icon:'📉', text:`Avance MO (${fmt.pct(realPct)}) está por debajo del ritmo esperado (${fmt.pct(expectedPct)} a esta altura).`});
+    } else if(realPct > expectedPct * 1.3){
+      alerts.push({type:'info', icon:'🚀', text:`Avance MO (${fmt.pct(realPct)}) supera el ritmo lineal esperado (${fmt.pct(expectedPct)}). Verifica calidad/sobreejecución.`});
+    }
+  }
+  if(completadas > 0){
+    alerts.push({type:'ok', icon:'✅', text:`<strong>${completadas} partidas completadas</strong> (≥95% del costo MO previsto ejecutado).`});
+  }
+  if(alerts.length===0){
+    alerts.push({type:'info', icon:'ℹ️', text:'Sin alertas relevantes. Empieza a registrar horas en la pestaña <strong>Registro Semanal</strong> para ver análisis dinámico.'});
+  }
+  document.getElementById('alerts-list').innerHTML = alerts.map(a=>
+    `<div class="alert alert-${a.type}"><span class="alert-icon">${a.icon}</span><div>${a.text}</div></div>`
+  ).join('');
+}
+
+// ========================================================
+// EXPORT
+// ========================================================
+function exportCSV(){
+  const rows = [['Semana','Item','Descripción','Dia','Categoría','Horas','Tarifa S/.','Costo S/.']];
+  for(let s=1;s<=4;s++){
+    const sem = registros[s];
+    if(!sem) continue;
+    Object.keys(sem).forEach(item=>{
+      const p = PARTIDAS.find(p=>p.item===item);
+      if(!p) return;
+      for(let d=0;d<7;d++){
+        const dia = sem[item][d];
+        if(!dia) continue;
+        ['p','o','op'].forEach(c=>{
+          if(dia[c]>0){
+            const tarifa = p['tar_'+c]||0;
+            rows.push([s, item, p.desc, DIAS[d], CAT_NAMES[c], dia[c], tarifa, dia[c]*tarifa]);
+          }
+        });
+      }
+    });
+  }
+  if(rows.length===1){
+    toast('No hay registros para exportar');
+    return;
+  }
+  const csv = rows.map(r=>r.map(v=>{
+    const s=String(v).replace(/"/g,'""');
+    return /[",\n;]/.test(s) ? `"${s}"` : s;
+  }).join(';')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `registro_mo_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ CSV exportado');
+}
+
+// ========================================================
+// EVENT BINDINGS
+// ========================================================
+function bindEvents(){
+  // Tabs
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('panel-'+t.dataset.panel).classList.add('active');
+      renderAll();
+    });
+  });
+  // Search & filters partidas
+  document.getElementById('search').addEventListener('input', e=>{tablaFilters.search=e.target.value; renderPartidas();});
+  document.getElementById('filter-spec').addEventListener('change', e=>{tablaFilters.spec=e.target.value; renderPartidas();});
+  document.getElementById('filter-estado').addEventListener('change', e=>{tablaFilters.estado=e.target.value; renderPartidas();});
+  document.getElementById('btn-reset-filters').addEventListener('click', ()=>{
+    tablaFilters={search:'',spec:'',estado:''};
+    document.getElementById('search').value='';
+    document.getElementById('filter-spec').value='';
+    document.getElementById('filter-estado').value='';
+    renderPartidas();
+  });
+  // Sort
+  document.querySelectorAll('#tabla-partidas th[data-sort]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const col = th.dataset.sort;
+      if(sortCol===col) sortDir=-sortDir; else {sortCol=col;sortDir=1;}
+      document.querySelectorAll('#tabla-partidas th .sort-ind').forEach(s=>s.textContent='↕');
+      th.querySelector('.sort-ind').textContent = sortDir>0 ? '↑' : '↓';
+      renderPartidas();
+    });
+  });
+  // Semana selector
+  document.querySelectorAll('.semana-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('.semana-btn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      currentSemana = +b.dataset.semana;
+      renderRegistro();
+    });
+  });
+  // Registro filters
+  document.getElementById('reg-search').addEventListener('input', e=>{regFilters.search=e.target.value; renderRegistro();});
+  document.getElementById('reg-filter-spec').addEventListener('change', e=>{regFilters.spec=e.target.value; renderRegistro();});
+  document.getElementById('reg-only-mo').addEventListener('click', e=>{
+    regFilters.onlyMo = !regFilters.onlyMo;
+    e.target.classList.toggle('chip-active');
+    e.target.style.background = regFilters.onlyMo ? '#0E7C7B' : '';
+    e.target.style.color = regFilters.onlyMo ? '#fff' : '';
+    renderRegistro();
+  });
+  // Clear week
+  document.getElementById('btn-clear-week').addEventListener('click', ()=>{
+    if(confirm(`¿Limpiar TODOS los registros de la Semana ${currentSemana}? Esta acción no se puede deshacer.`)){
+      delete registros[currentSemana];
+      saveRegistros();
+      renderAll();
+      toast('Semana '+currentSemana+' limpiada');
+    }
+  });
+  document.getElementById('btn-export').addEventListener('click', exportCSV);
+}
+
+function renderAll(){
+  renderOverview();
+  renderPartidas();
+  renderRegistro();
+  renderAnalisis();
+}
+
+// ========================================================
+// INIT
+// ========================================================
+initSpecFilters();
+bindEvents();
+renderAll();
+if(Object.keys(registros).length === 0){
+  document.getElementById('last-save').textContent = 'Sin guardar aún';
+} else {
+  updateLastSave();
+}
+</script>
+</body>
+</html>
