@@ -133,6 +133,19 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .3s;z-index:100}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-8px)}
 
+/* Modal token */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.hidden{display:none}
+.modal-box{background:#fff;border-radius:16px;padding:28px;max-width:480px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.modal-box h2{font-size:18px;font-weight:700;margin-bottom:8px;color:#1f2937}
+.modal-box p{font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.6}
+.modal-box input{width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:monospace;margin-bottom:12px}
+.modal-box input:focus{outline:none;border-color:#0E7C7B}
+.modal-box .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+.modal-box a{color:#0E7C7B;text-decoration:underline}
+.btn-token{background:none;border:1.5px solid rgba(255,255,255,.5);color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-left:10px}
+.btn-token:hover{background:rgba(255,255,255,.15)}
+
 @media (max-width:640px){
   .header h1{font-size:18px}
   .kpi-value{font-size:18px}
@@ -156,6 +169,22 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
     <span>🗓️ <strong>4 semanas</strong></span>
     <span>👷 <strong id="meta-partidas">— partidas con MO</strong></span>
     <span>💾 <span id="last-save">Sin guardar aún</span></span>
+    <span><button class="btn-token" id="btn-config-token">⚙️ Token</button></span>
+  </div>
+</div>
+
+<!-- MODAL TOKEN -->
+<div class="modal-overlay hidden" id="modal-token">
+  <div class="modal-box">
+    <h2>🔑 Configurar Token de GitHub</h2>
+    <p>Para guardar datos necesitas un <strong>Fine-grained Personal Access Token</strong> de GitHub con permiso <strong>Contents: Read &amp; Write</strong> solo para este repositorio.<br><br>
+    <a href="https://github.com/settings/tokens?type=beta" target="_blank">→ Crear token en GitHub</a></p>
+    <input type="password" id="input-token" placeholder="github_pat_..." autocomplete="off">
+    <p style="font-size:11px;color:#9ca3af;margin-top:-8px;margin-bottom:12px">El token se guarda solo en tu navegador, nunca en el código.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="btn-token-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="btn-token-save">Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -303,7 +332,8 @@ const GH_OWNER  = 'davargas18-afk';
 const GH_REPO   = 'DB_MO_BC';
 const GH_BRANCH = 'main';
 const GH_FILE   = 'data/registros.json';
-const GH_TOKEN  = 'TU_GITHUB_TOKEN_AQUI'; // Fine-grained PAT con permisos Contents: Read & Write
+// El token se guarda en localStorage del navegador, nunca en el código
+let GH_TOKEN = localStorage.getItem('gh_mo_token') || '';
 
 const SPEC_COLORS = {
   'Obras Provisionales y Seguridad': '#F59E0B',
@@ -963,11 +993,29 @@ function renderAll(){
 }
 
 // ========================================================
+// ========================================================
+// MODAL TOKEN
+// ========================================================
+function showTokenModal(){ document.getElementById('modal-token').classList.remove('hidden'); document.getElementById('input-token').value = GH_TOKEN; }
+function hideTokenModal(){ document.getElementById('modal-token').classList.add('hidden'); }
+document.getElementById('btn-config-token').addEventListener('click', showTokenModal);
+document.getElementById('btn-token-cancel').addEventListener('click', hideTokenModal);
+document.getElementById('btn-token-save').addEventListener('click', ()=>{
+  const t = document.getElementById('input-token').value.trim();
+  if(!t){ toast('Ingresa un token válido'); return; }
+  GH_TOKEN = t;
+  localStorage.setItem('gh_mo_token', t);
+  hideTokenModal();
+  toast('✓ Token guardado en este navegador');
+});
+
+// ========================================================
 // INIT
 // ========================================================
 initSpecFilters();
 bindEvents();
 (async ()=>{
+  if(!GH_TOKEN){ showTokenModal(); }
   registros = await loadRegistros();
   renderAll();
   if(Object.keys(registros).length === 0){
