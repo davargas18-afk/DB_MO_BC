@@ -298,7 +298,14 @@ const DATA = {"tarifas": {"p": 29.19, "o": 10.08, "op": 14.33}, "partidas": [{"i
 const PARTIDAS = DATA.partidas;
 const TARIFAS = DATA.tarifas;
 const SPECS = [...new Set(PARTIDAS.filter(p=>!p.is_group).map(p=>p.specialty))];
-const STORAGE_KEY = 'control_mo_balcon_cusqueno_v1';
+// ⚙️ CONFIGURAR: Reemplaza estos valores con tus credenciales de Supabase
+const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
+const SUPABASE_KEY = 'TU_ANON_KEY_AQUI';
+const SUPABASE_HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Content-Type': 'application/json'
+};
 
 const SPEC_COLORS = {
   'Obras Provisionales y Seguridad': '#F59E0B',
@@ -316,24 +323,46 @@ const DIAS = ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'];
 // ========================================================
 // STATE & STORAGE
 // ========================================================
-let registros = loadRegistros();
+let registros = {};
 let currentSemana = 1;
 let sortCol = 'item', sortDir = 1;
 let regFilters = {search:'',spec:'',onlyMo:false};
 let tablaFilters = {search:'',spec:'',estado:''};
 let charts = {};
 
-function loadRegistros(){
+async function loadRegistros(){
   try {
-    const r = localStorage.getItem(STORAGE_KEY);
-    return r ? JSON.parse(r) : {};
-  } catch(e) { return {}; }
+    document.getElementById('last-save').textContent = 'Cargando datos...';
+    const res = await fetch(
+      SUPABASE_URL + '/rest/v1/registros_data?id=eq.1&select=data',
+      { headers: SUPABASE_HEADERS }
+    );
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    return rows[0]?.data || {};
+  } catch(e) {
+    console.error('loadRegistros:', e);
+    document.getElementById('last-save').textContent = '⚠️ Sin conexión – modo local';
+    return {};
+  }
 }
-function saveRegistros(){
+async function saveRegistros(){
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+    document.getElementById('last-save').textContent = 'Guardando...';
+    const res = await fetch(
+      SUPABASE_URL + '/rest/v1/registros_data?id=eq.1',
+      {
+        method: 'PATCH',
+        headers: Object.assign({}, SUPABASE_HEADERS, {'Prefer': 'return=minimal'}),
+        body: JSON.stringify({ data: registros, updated_at: new Date().toISOString() })
+      }
+    );
+    if(!res.ok) throw new Error('HTTP ' + res.status);
     updateLastSave();
-  } catch(e) { toast('Error al guardar: ' + e.message); }
+  } catch(e) {
+    console.error('saveRegistros:', e);
+    toast('❌ Error al guardar: ' + e.message);
+  }
 }
 function updateLastSave(){
   const d = new Date();
@@ -681,7 +710,7 @@ function renderRegistro(){
 
   // Bind inputs
   cont.querySelectorAll('input[type=number]').forEach(inp=>{
-    inp.addEventListener('change', e=>{
+    inp.addEventListener('change', async e=>{
       const item = e.target.dataset.item;
       const cat = e.target.dataset.cat;
       const day = +e.target.dataset.day;
@@ -690,7 +719,7 @@ function renderRegistro(){
       if(!registros[currentSemana][item]) registros[currentSemana][item] = {};
       if(!registros[currentSemana][item][day]) registros[currentSemana][item][day] = {p:0,o:0,op:0};
       registros[currentSemana][item][day][cat] = val;
-      saveRegistros();
+      await saveRegistros();
       toast('✓ Guardado');
       renderRegistro();
     });
@@ -906,10 +935,10 @@ function bindEvents(){
     renderRegistro();
   });
   // Clear week
-  document.getElementById('btn-clear-week').addEventListener('click', ()=>{
+  document.getElementById('btn-clear-week').addEventListener('click', async ()=>{
     if(confirm(`¿Limpiar TODOS los registros de la Semana ${currentSemana}? Esta acción no se puede deshacer.`)){
       delete registros[currentSemana];
-      saveRegistros();
+      await saveRegistros();
       renderAll();
       toast('Semana '+currentSemana+' limpiada');
     }
@@ -929,12 +958,15 @@ function renderAll(){
 // ========================================================
 initSpecFilters();
 bindEvents();
-renderAll();
-if(Object.keys(registros).length === 0){
-  document.getElementById('last-save').textContent = 'Sin guardar aún';
-} else {
-  updateLastSave();
-}
+(async ()=>{
+  registros = await loadRegistros();
+  renderAll();
+  if(Object.keys(registros).length === 0){
+    document.getElementById('last-save').textContent = 'Sin registros aún';
+  } else {
+    updateLastSave();
+  }
+})();
 </script>
 </body>
 </html>
