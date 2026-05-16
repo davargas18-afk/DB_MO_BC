@@ -148,6 +148,7 @@ tr.group-row td{background:#f3f4f6;font-weight:700;color:#374151;font-size:11px;
 /* Programación */
 .semana-selector-container{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .prog-inp{width:54px;padding:5px 4px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+#prog-tabla table{min-width:1100px}
 .prog-inp:focus{outline:none;border-color:#2563EB;background:#eff6ff}
 tfoot td{font-weight:700;font-size:12px;padding:10px}
 .btn-add-semana{min-width:56px!important;border-style:dashed!important;color:#0E7C7B!important;font-size:18px!important;padding:6px!important}
@@ -531,7 +532,10 @@ function horasEjecutadasSemana(item, sem){
   return r;
 }
 function costoPartida(p, h){
-  return (h.p * (p.tar_p||0)) + (h.o * (p.tar_o||0)) + (h.op * (p.tar_op||0));
+  const tp = p.tar_p || (p.has_mo ? DATA.tarifas.p : 0);
+  const to = p.tar_o || (p.has_mo ? DATA.tarifas.o : 0);
+  const top= p.tar_op|| (p.has_mo ? DATA.tarifas.op: 0);
+  return (h.p * tp) + (h.o * to) + (h.op * top);
 }
 function getEstado(p){
   if(p.is_group) return 'group';
@@ -811,16 +815,16 @@ function renderRegistro(){
       </div>
       ${p.has_mo ? `
       <div style="margin-top:12px;border-top:1px solid #f3f4f6;padding-top:10px">
-        ${['p','o','op'].filter(c=>p['rend_'+c]>0).map(c=>`
+        ${['p','o','op'].map(c=>{const tarEf=p['tar_'+c]||(DATA.tarifas[c]||0);const enPres=p['rend_'+c]>0;return `
         <div style="margin-bottom:8px">
-          <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">${CAT_NAMES[c]} <span style="color:#9ca3af;font-weight:400">(tarifa S/. ${p['tar_'+c]||0}/hh)</span></div>
+          <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">${CAT_NAMES[c]} <span style="color:#9ca3af;font-weight:400">(tarifa S/. ${tarEf.toFixed(2)}/hh${enPres?'':' · no presupuestado'})</span></div>
           <div class="partida-input-grid">
             ${DIAS.map((d,i)=>`<div class="day-input">
               <div class="day-label">${d}</div>
               <input type="number" min="0" step="0.5" value="${(partidaReg[i]?.[c])||''}" placeholder="0" data-item="${p.item}" data-cat="${c}" data-day="${i}">
             </div>`).join('')}
           </div>
-        </div>`).join('')}
+        </div>`;}).join('')}
         <div class="summary-strip">
           <div class="mini"><div class="mini-label">Esta semana</div><div class="mini-val">${fmt.hh(h.p+h.o+h.op)}</div></div>
           <div class="mini"><div class="mini-label">Acumulado</div><div class="mini-val">${fmt.hh(hTotalEj.p+hTotalEj.o+hTotalEj.op)}</div></div>
@@ -1151,34 +1155,41 @@ function renderProgramacion(){
     <table>
       <thead>
         <tr>
-          <th>Item</th><th>Descripción</th>
-          <th colspan="3" style="text-align:center;background:rgba(37,99,235,.12)">${showAcumulado?'HH Prog. Acum.':'HH Programadas S'+currentSemana}</th>
-          <th style="text-align:right;background:rgba(37,99,235,.08)">C. Prog.</th>
-          <th style="text-align:right;background:rgba(22,163,74,.08)">C. Ejec.</th>
-          <th style="text-align:center">% Ejec.</th>
-          <th style="text-align:right">Saldo</th>
+          <th rowspan="2">Item</th><th rowspan="2">Descripción</th>
+          <th colspan="3" style="text-align:center;background:rgba(37,99,235,.15);border-bottom:1px solid rgba(37,99,235,.2)">${showAcumulado?'HH Prog. Acum.':'HH Programadas S'+currentSemana}</th>
+          <th colspan="3" style="text-align:center;background:rgba(22,163,74,.15);border-bottom:1px solid rgba(22,163,74,.2)">HH Ejecutadas</th>
+          <th rowspan="2" style="text-align:right;background:rgba(37,99,235,.08)">C. Prog.</th>
+          <th rowspan="2" style="text-align:right;background:rgba(22,163,74,.08)">C. Ejec.</th>
+          <th rowspan="2" style="text-align:center">% Ejec.</th>
+          <th rowspan="2" style="text-align:right">Saldo</th>
         </tr>
         <tr style="background:#f9fafb;font-size:10px">
-          <th></th><th></th>
-          <th style="text-align:center;color:#2563EB">Peón</th>
-          <th style="text-align:center;color:#F59E0B">Oficial</th>
-          <th style="text-align:center;color:#16A34A">Operario</th>
-          <th></th><th></th><th></th><th></th>
+          <th style="text-align:center;color:#2563EB;background:rgba(37,99,235,.06)">Peón</th>
+          <th style="text-align:center;color:#F59E0B;background:rgba(37,99,235,.06)">Oficial</th>
+          <th style="text-align:center;color:#16A34A;background:rgba(37,99,235,.06)">Operario</th>
+          <th style="text-align:center;color:#2563EB;background:rgba(22,163,74,.06)">Peón</th>
+          <th style="text-align:center;color:#F59E0B;background:rgba(22,163,74,.06)">Oficial</th>
+          <th style="text-align:center;color:#16A34A;background:rgba(22,163,74,.06)">Operario</th>
         </tr>
       </thead>
       <tbody>
-        ${rowsActivos.length===0?`<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">Sin datos programados para esta semana.<br>Ingresa las horas previstas en las columnas Peón / Oficial / Operario.</td></tr>`:''}
+        ${rowsActivos.length===0?`<tr><td colspan="12" style="text-align:center;padding:30px;color:#9ca3af">Sin datos programados para esta semana.<br>Ingresa las horas previstas en las columnas Peón / Oficial / Operario.</td></tr>`:''}
         ${rowsActivos.map(r=>{
           const fw=Math.min(r.pct*100,110); const fc=r.pct>1.1?'over':r.pct<0.05?'low':'';
+          const varP=r.hEjec.p-r.hPlan.p, varO=r.hEjec.o-r.hPlan.o, varOp=r.hEjec.op-r.hPlan.op;
+          const clr=(v,plan)=>v===0&&plan===0?'#9ca3af':v>plan?'#DC2626':v<plan?'#2563EB':'#16A34A';
           return `<tr>
             <td class="item-cell">${r.p.item}</td>
-            <td class="desc-cell" style="max-width:220px">${r.p.desc}</td>
+            <td class="desc-cell" style="max-width:180px">${r.p.desc}</td>
             ${showAcumulado
-              ?`<td class="num-cell">${r.hPlan.p.toFixed(1)}</td><td class="num-cell">${r.hPlan.o.toFixed(1)}</td><td class="num-cell">${r.hPlan.op.toFixed(1)}</td>`
-              :`<td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="p" value="${r.hPlan.p||''}"></td>
-               <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="o" value="${r.hPlan.o||''}"></td>
-               <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="op" value="${r.hPlan.op||''}"></td>`
+              ?`<td class="num-cell" style="background:rgba(37,99,235,.04)">${r.hPlan.p>0?r.hPlan.p.toFixed(1):'—'}</td><td class="num-cell" style="background:rgba(37,99,235,.04)">${r.hPlan.o>0?r.hPlan.o.toFixed(1):'—'}</td><td class="num-cell" style="background:rgba(37,99,235,.04)">${r.hPlan.op>0?r.hPlan.op.toFixed(1):'—'}</td>`
+              :`<td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="p" value="${r.hPlan.p||''}"></td>
+               <td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="o" value="${r.hPlan.o||''}"></td>
+               <td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.p.item}" data-cat="op" value="${r.hPlan.op||''}"></td>`
             }
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${clr(r.hEjec.p,r.hPlan.p)};font-weight:600">${r.hEjec.p>0?r.hEjec.p.toFixed(1):'—'}</td>
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${clr(r.hEjec.o,r.hPlan.o)};font-weight:600">${r.hEjec.o>0?r.hEjec.o.toFixed(1):'—'}</td>
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${clr(r.hEjec.op,r.hPlan.op)};font-weight:600">${r.hEjec.op>0?r.hEjec.op.toFixed(1):'—'}</td>
             <td class="num-cell">${r.cPlan>0?fmt(r.cPlan):'—'}</td>
             <td class="num-cell">${r.cEjec>0?fmt(r.cEjec):'—'}</td>
             <td style="text-align:center">${r.cPlan>0?`<div class="progress-bar"><div class="progress-fill ${fc}" style="width:${fw}%"></div><span class="progress-text">${(r.pct*100).toFixed(0)}%</span></div>`:'—'}</td>
@@ -1186,24 +1197,28 @@ function renderProgramacion(){
           </tr>`;
         }).join('')}
         ${!showAcumulado&&detalle.filter(p=>!(programacion[currentSemana]||{})[p.item]||(((programacion[currentSemana]||{})[p.item]?.p||0)+((programacion[currentSemana]||{})[p.item]?.o||0)+((programacion[currentSemana]||{})[p.item]?.op||0))===0).slice(0,50).map(r=>{
-          return `<tr style="opacity:.55">
+          const ej=horasEjecutadasSemana(r.item,currentSemana);
+          return `<tr style="opacity:.6">
             <td class="item-cell">${r.item}</td>
-            <td class="desc-cell" style="max-width:220px">${r.desc}</td>
-            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="p" value=""></td>
-            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="o" value=""></td>
-            <td style="text-align:center"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="op" value=""></td>
+            <td class="desc-cell" style="max-width:180px">${r.desc}</td>
+            <td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="p" value=""></td>
+            <td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="o" value=""></td>
+            <td style="text-align:center;background:rgba(37,99,235,.04)"><input type="number" min="0" step="0.5" class="prog-inp" data-item="${r.item}" data-cat="op" value=""></td>
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${ej.p>0?'#DC2626':'#9ca3af'};font-weight:600">${ej.p>0?ej.p.toFixed(1):'—'}</td>
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${ej.o>0?'#DC2626':'#9ca3af'};font-weight:600">${ej.o>0?ej.o.toFixed(1):'—'}</td>
+            <td class="num-cell" style="background:rgba(22,163,74,.04);color:${ej.op>0?'#DC2626':'#9ca3af'};font-weight:600">${ej.op>0?ej.op.toFixed(1):'—'}</td>
             <td class="num-cell">—</td><td class="num-cell">—</td><td>—</td><td>—</td>
           </tr>`;
         }).join('')}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="2">TOTAL</td>
-          <td colspan="3"></td>
-          <td class="num-cell">${fmt(totPlan)}</td>
-          <td class="num-cell">${fmt(totEjec)}</td>
-          <td style="text-align:center">${totPlan>0?(totPct*100).toFixed(1)+'%':'—'}</td>
-          <td class="num-cell" style="color:${totSaldo>=0?'#16A34A':'#DC2626'}">${fmt(totSaldo)}</td>
+          <td colspan="2" style="font-weight:700">TOTAL</td>
+          <td colspan="6"></td>
+          <td class="num-cell" style="font-weight:700">${fmt(totPlan)}</td>
+          <td class="num-cell" style="font-weight:700">${fmt(totEjec)}</td>
+          <td style="text-align:center;font-weight:700">${totPlan>0?(totPct*100).toFixed(1)+'%':'—'}</td>
+          <td class="num-cell" style="color:${totSaldo>=0?'#16A34A':'#DC2626'};font-weight:700">${fmt(totSaldo)}</td>
         </tr>
       </tfoot>
     </table>
